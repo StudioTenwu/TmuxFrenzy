@@ -1,0 +1,48 @@
+
+
+(1):
+(A - GAME INIT) 
+my idea for this game is like
+  we create this in react
+  and let's say there's a blank background with hollow purple squares
+  so like, as a starting pattern, let's just have it as squares extending downwards, with
+  some on the left and right
+  the most important thing here is that we can freely declare grids of these squares - let's assume that they're all the same size 
+  by pressing alt + hjkl, the user can move between squares (vim controls)
+  the square the user is in can be denoted by having its outline be light purple instead of dark purple
+    * (for color scheme, refer to tokyo night so that it's easier on the eyes. In fact, decide the background based on what goes well with these colors)
+
+what if, at the start, we have alt + j (big pixilated text) showing player how to move downwards. And then a blue square comes at them, but there isn't space to go down, so we have alt + k showing them to move up. And then we use blocks coming in from the top to do something similar for alt + h, alt + l
+
+
+(B - INTRODUCTION OF ENEMIES)
+now I want to introduce enemies that come in the form of blue squares (identical in size to the purple squares)
+  let's say that these squares either come from right to left, or top to bottom
+  if the player collides with one, they have to restart the level (but there isn't a 'you lose' type of thing or anything like that. How about it just does a little rewinding effect / animation, and moves them to the level start screen, with a triangular play button in the middle of the screen to let them play the level
+  how about we define a purple square with respect to its target block, the direction it heads, and the time it comes onscreen
+
+
+(2): 
+
+(A)
+now I want to create a game that features the terminal multiplexing nature of tmux
+in this, the user has some main controls: alt + hjkl
+they can also use alt + q to do a horizontal split ('hotdog'), and alt + w to do a vertical split ('hamburger')
+then the main gimmick of this game is that, we show them a line on the screen, and we want the boundary of their terminals to align with this line
+for parts of the line that are covered, we show them in green, and for parts that aren't covered, we show them in red
+then once the player covers the whole line, it moves onto the next screen and we repeat the process
+when we do the vertical / horizontal split, it lets us do it exactly in half. Implement this in the way that you think it's simplest, but one way to do it could be to define the line using fractions, and then also perhaps processing terminal panes using fractions (i.e. the x, y fractions of its bottom left and top right corners) to determine what parts of the line it fulfills
+
+
+(B) 
+now I want there to be a 'practice' mode where the player has infinite time to satisfy each line 
+but then I want there to be a 'start the clock' mode (pixilated text, black shadow behind textbox) that will start a 20-second clock
+it will also show the streak of number of screens they have completed
+and if they fail to satisfy the line within the time limit, it resets / plays the same rewinding effect as our initial level / goes back to the overall selection screen
+
+
+
+
+
+
+

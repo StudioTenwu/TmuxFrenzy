@@ -1,0 +1,80 @@
+.game-container {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background-color: var(--bg-dark);
+}
+
+.game-world {
+  position: absolute;
+  /* Center the world in the viewport */
+  left: 50%;
+  top: 50%;
+  transform-origin: 0 0;
+  transition: transform 0.15s ease-out;
+}
+
+.grid-cell {
+  position: absolute;
+  border: 2px solid var(--purple-dark);
+  background: transparent;
+  box-sizing: border-box;
+  transition: border-color 0.1s ease;
+}
+
+.grid-cell.active {
+  border-color: var(--purple-light);
+  border-width: 3px;
+  box-shadow: 0 0 10px var(--purple-light);
+}
+
+.debug-info {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.block {
+  position: absolute;
+  background-color: var(--blue-bright);
+  border: 2px solid var(--blue-bright);
+  box-sizing: border-box;
+  transition: all 0.15s ease-out;
+  box-shadow: 0 0 15px var(--blue-bright);
+}
+
+.hint-text {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 72px;
+  font-weight: bold;
+  color: var(--purple-light);
+  text-shadow:
+    0 0 10px var(--purple-light),
+    0 0 20px var(--purple-light),
+    0 0 30px var(--purple-dark);
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  z-index: 900;
+  pointer-events: none;
+  letter-spacing: 8px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
