@@ -58,8 +58,8 @@ function Game() {
 
   // Generate sine wave path
   const generateWavePath = useCallback((side, offset = 0) => {
-    const amplitude = 4; // Wave height (reduced)
-    const period = 60; // Wave length (increased)
+    const amplitude = 2.5; // Wave height (halved)
+    const period = 120; // Wave length (doubled)
     const padding = 20; // Extra space for waves and glow
     const points = [];
 
