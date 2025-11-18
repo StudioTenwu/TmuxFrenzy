@@ -24,9 +24,11 @@
 }
 
 .grid-cell.active {
-  border-color: var(--purple-lighter);
-  border-width: 4px;
-  box-shadow: 0 0 20px var(--purple-light), 0 0 40px var(--purple-light);
+  border: none;
+  box-shadow:
+    0 0 20px var(--purple-light),
+    0 0 40px var(--purple-light);
+  position: relative;
 }
 
 .grid-cell.dying {

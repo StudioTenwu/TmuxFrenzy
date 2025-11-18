@@ -20,12 +20,20 @@ function Game() {
   // Camera offset (keeps player centered)
   const [cameraOffset, setCameraOffset] = useState({ x: 0, y: 0 });
 
-  // Blocks (obstacles)
+  // Blocks (obstacles) - each has {id, x, y, direction}
   const [blocks, setBlocks] = useState([]);
 
   // Tutorial state
   const [tutorialStep, setTutorialStep] = useState(0);
-  const [hintText, setHintText] = useState('alt + j');
+  const [hintText, setHintText] = useState('');
+
+  // Track which directions have been used (for first-time hints)
+  const [usedDirections, setUsedDirections] = useState({
+    left: false,
+    right: false,
+    up: false,
+    down: false,
+  });
 
   // Keybindings (tmux format)
   const [keybindings, setKeybindings] = useState(DEFAULT_KEYBINDINGS);
@@ -35,6 +43,51 @@ function Game() {
   const [deathProgress, setDeathProgress] = useState(0);
 
   const tutorialTimerRef = useRef(null);
+
+  // Sine wave animation for border
+  const [waveOffset, setWaveOffset] = useState(0);
+
+  // Animate wave offset
+  useEffect(() => {
+    const animationFrame = requestAnimationFrame(function animate() {
+      setWaveOffset(prev => (prev + 0.5) % 240); // Shift wave continuously
+      requestAnimationFrame(animate);
+    });
+    return () => cancelAnimationFrame(animationFrame);
+  }, []);
+
+  // Generate sine wave path
+  const generateWavePath = useCallback((side, offset = 0) => {
+    const amplitude = 6; // Wave height
+    const period = 40; // Wave length
+    const points = [];
+
+    if (side === 'top') {
+      for (let x = 0; x <= CELL_SIZE; x += 2) {
+        const y = amplitude * Math.sin(((x + offset) / period) * Math.PI * 2) + 10;
+        points.push(`${x},${y}`);
+      }
+      return `M ${points.join(' L ')}`;
+    } else if (side === 'bottom') {
+      for (let x = 0; x <= CELL_SIZE; x += 2) {
+        const y = CELL_SIZE - 10 + amplitude * Math.sin(((x + offset) / period) * Math.PI * 2);
+        points.push(`${x},${y}`);
+      }
+      return `M ${points.join(' L ')}`;
+    } else if (side === 'left') {
+      for (let y = 0; y <= CELL_SIZE; y += 2) {
+        const x = 10 + amplitude * Math.sin(((y + offset) / period) * Math.PI * 2);
+        points.push(`${x},${y}`);
+      }
+      return `M ${points.join(' L ')}`;
+    } else if (side === 'right') {
+      for (let y = 0; y <= CELL_SIZE; y += 2) {
+        const x = CELL_SIZE - 10 + amplitude * Math.sin(((y + offset) / period) * Math.PI * 2);
+        points.push(`${x},${y}`);
+      }
+      return `M ${points.join(' L ')}`;
+    }
+  }, []);
 
   // Convert tmux notation to human-readable format
   const formatKeybinding = useCallback((binding) => {
@@ -154,6 +207,78 @@ function Game() {
     return traversableCells.has(`${x},${y}`);
   }, [traversableCells]);
 
+  // Get all reachable cells from player position using BFS
+  const getReachableCells = useCallback(() => {
+    const reachable = new Set();
+    const queue = [{ x: playerPos.x, y: playerPos.y }];
+    const visited = new Set([`${playerPos.x},${playerPos.y}`]);
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      reachable.add(`${current.x},${current.y}`);
+
+      // Check all 4 directions
+      const neighbors = [
+        { x: current.x - 1, y: current.y },
+        { x: current.x + 1, y: current.y },
+        { x: current.x, y: current.y - 1 },
+        { x: current.x, y: current.y + 1 },
+      ];
+
+      for (const neighbor of neighbors) {
+        const key = `${neighbor.x},${neighbor.y}`;
+        if (!visited.has(key) && isTraversable(neighbor.x, neighbor.y)) {
+          visited.add(key);
+          queue.push(neighbor);
+        }
+      }
+    }
+
+    return reachable;
+  }, [playerPos, isTraversable]);
+
+  // Spawn a block above or to the right of player
+  const spawnBlock = useCallback(() => {
+    // Randomly choose to spawn above or to the right
+    const spawnAbove = Math.random() < 0.5;
+
+    if (spawnAbove) {
+      // Spawn above player, moving down
+      // Add some horizontal variance (-2 to +2)
+      const variance = Math.floor(Math.random() * 5) - 2;
+      const spawnX = playerPos.x + variance;
+      const spawnY = playerPos.y - 5; // 5 cells above
+
+      // Check if spawn position is valid (traversable)
+      if (isTraversable(spawnX, spawnY)) {
+        return {
+          id: Date.now() + Math.random(),
+          x: spawnX,
+          y: spawnY,
+          direction: 'down',
+        };
+      }
+    } else {
+      // Spawn to the right of player, moving left
+      // Add some vertical variance (-2 to +2)
+      const variance = Math.floor(Math.random() * 5) - 2;
+      const spawnX = playerPos.x + 5; // 5 cells to the right
+      const spawnY = playerPos.y + variance;
+
+      // Check if spawn position is valid (traversable)
+      if (isTraversable(spawnX, spawnY)) {
+        return {
+          id: Date.now() + Math.random(),
+          x: spawnX,
+          y: spawnY,
+          direction: 'left',
+        };
+      }
+    }
+
+    return null;
+  }, [playerPos, isTraversable]);
+
   // Handle keyboard input
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -192,22 +317,27 @@ function Game() {
         // Update camera to follow player
         setCameraOffset({ x: newX * CELL_SIZE, y: newY * CELL_SIZE });
 
-        // Tutorial progression
-        if (tutorialStep === 0 && direction === 'down') {
-          setTutorialStep(1);
-        } else if (tutorialStep === 1 && direction === 'up') {
-          setTutorialStep(2);
-        } else if (tutorialStep === 2 && direction === 'left') {
-          setTutorialStep(3);
-        } else if (tutorialStep === 3 && direction === 'right') {
-          setTutorialStep(4);
+        // Show hint on first use of each direction
+        if (direction && !usedDirections[direction]) {
+          const directionKeyMap = {
+            left: keybindings.left,
+            right: keybindings.right,
+            up: keybindings.up,
+            down: keybindings.down,
+          };
+
+          setHintText(formatKeybinding(directionKeyMap[direction]));
+          setUsedDirections(prev => ({ ...prev, [direction]: true }));
+
+          // Hide hint after 2 seconds
+          setTimeout(() => setHintText(''), 2000);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [playerPos, isTraversable, tutorialStep, keybindings, matchesKeybinding]);
+  }, [playerPos, isTraversable, keybindings, matchesKeybinding, usedDirections, formatKeybinding]);
 
   // Tutorial sequence
   useEffect(() => {
@@ -225,7 +355,7 @@ function Game() {
         // Step 1: Spawn block coming from bottom, show up key
         setHintText(formatKeybinding(keybindings.up) || 'Alt+k');
         tutorialTimerRef.current = setTimeout(() => {
-          setBlocks([{ id: Date.now(), x: 0, y: 5 }]);
+          setBlocks([{ id: Date.now(), x: 0, y: 5, direction: 'up' }]);
         }, 1000);
         break;
 
@@ -233,7 +363,7 @@ function Game() {
         // Step 2: Spawn blocks from top to teach left key
         setHintText(formatKeybinding(keybindings.left) || 'Alt+h');
         tutorialTimerRef.current = setTimeout(() => {
-          setBlocks([{ id: Date.now(), x: 0, y: -5 }]);
+          setBlocks([{ id: Date.now(), x: 0, y: -5, direction: 'down' }]);
         }, 1000);
         break;
 
@@ -241,7 +371,7 @@ function Game() {
         // Step 3: Spawn blocks to teach right key
         setHintText(formatKeybinding(keybindings.right) || 'Alt+l');
         tutorialTimerRef.current = setTimeout(() => {
-          setBlocks([{ id: Date.now(), x: -2, y: -3 }]);
+          setBlocks([{ id: Date.now(), x: -2, y: -3, direction: 'right' }]);
         }, 1000);
         break;
 
@@ -261,35 +391,46 @@ function Game() {
     };
   }, [tutorialStep, keybindings, formatKeybinding]);
 
-  // Block movement (snap to grid)
+  // Block movement (Tetris-style - constant speed in one direction)
   useEffect(() => {
     if (blocks.length === 0) return;
 
     const interval = setInterval(() => {
       setBlocks(prevBlocks => {
-        return prevBlocks.map(block => {
-          // Move block toward player
-          let newX = block.x;
-          let newY = block.y;
+        return prevBlocks
+          .map(block => {
+            let newX = block.x;
+            let newY = block.y;
 
-          if (tutorialStep === 1) {
-            // Move up
-            newY = block.y - 1;
-          } else if (tutorialStep === 2) {
-            // Move down
-            newY = block.y + 1;
-          } else if (tutorialStep === 3) {
-            // Move right
-            newX = block.x + 1;
-          }
+            // Move block in its direction
+            switch (block.direction) {
+              case 'up':
+                newY = block.y - 1;
+                break;
+              case 'down':
+                newY = block.y + 1;
+                break;
+              case 'left':
+                newX = block.x - 1;
+                break;
+              case 'right':
+                newX = block.x + 1;
+                break;
+            }
 
-          return { ...block, x: newX, y: newY };
-        });
+            return { ...block, x: newX, y: newY };
+          })
+          .filter(block => {
+            // Remove blocks that are too far from player (cleanup)
+            const distX = Math.abs(block.x - playerPos.x);
+            const distY = Math.abs(block.y - playerPos.y);
+            return distX < 20 && distY < 20;
+          });
       });
     }, BLOCK_SPEED);
 
     return () => clearInterval(interval);
-  }, [blocks, tutorialStep]);
+  }, [blocks, playerPos]);
 
   // Collision detection with blocks
   useEffect(() => {
@@ -333,35 +474,17 @@ function Game() {
     requestAnimationFrame(animate);
   }, [isDying]);
 
-  // Get all reachable cells from player position using BFS
-  const getReachableCells = useCallback(() => {
-    const reachable = new Set();
-    const queue = [{ x: playerPos.x, y: playerPos.y }];
-    const visited = new Set([`${playerPos.x},${playerPos.y}`]);
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-      reachable.add(`${current.x},${current.y}`);
-
-      // Check all 4 directions
-      const neighbors = [
-        { x: current.x - 1, y: current.y },
-        { x: current.x + 1, y: current.y },
-        { x: current.x, y: current.y - 1 },
-        { x: current.x, y: current.y + 1 },
-      ];
-
-      for (const neighbor of neighbors) {
-        const key = `${neighbor.x},${neighbor.y}`;
-        if (!visited.has(key) && isTraversable(neighbor.x, neighbor.y)) {
-          visited.add(key);
-          queue.push(neighbor);
-        }
+  // Continuous block spawning
+  useEffect(() => {
+    const spawnInterval = setInterval(() => {
+      const newBlock = spawnBlock();
+      if (newBlock) {
+        setBlocks(prev => [...prev, newBlock]);
       }
-    }
+    }, 2000); // Spawn every 2 seconds
 
-    return reachable;
-  }, [playerPos, isTraversable]);
+    return () => clearInterval(spawnInterval);
+  }, [spawnBlock]);
 
   // Get cells to render (only reachable cells)
   const getCellsToRender = useCallback(() => {
@@ -413,7 +536,32 @@ function Game() {
                 transform: transform,
                 opacity: isPlayer && isDying ? 1 - deathProgress : 1,
               }}
-            />
+            >
+              {isPlayer && !isDying && (
+                <svg
+                  className="wavy-border"
+                  width={CELL_SIZE}
+                  height={CELL_SIZE}
+                  style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+                >
+                  <defs>
+                    <linearGradient id="borderGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="var(--purple-lighter)" />
+                      <stop offset="50%" stopColor="var(--purple-light)" />
+                      <stop offset="100%" stopColor="var(--purple-lighter)" />
+                    </linearGradient>
+                  </defs>
+                  {/* Top wave */}
+                  <path d={generateWavePath('top', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" />
+                  {/* Right wave */}
+                  <path d={generateWavePath('right', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" />
+                  {/* Bottom wave */}
+                  <path d={generateWavePath('bottom', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" />
+                  {/* Left wave */}
+                  <path d={generateWavePath('left', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" />
+                </svg>
+              )}
+            </div>
           );
         })}
 
