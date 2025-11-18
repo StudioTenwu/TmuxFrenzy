@@ -13,6 +13,8 @@ my idea for this game is like
     * (for color scheme, refer to tokyo night so that it's easier on the eyes. In fact, decide the background based on what goes well with these colors)
 
 what if, at the start, we have alt + j (big pixilated text) showing player how to move downwards. And then a blue square comes at them, but there isn't space to go down, so we have alt + k showing them to move up. And then we use blocks coming in from the top to do something similar for alt + h, alt + l
+ve
+
 
 
 (B - INTRODUCTION OF ENEMIES)
@@ -23,7 +25,6 @@ now I want to introduce enemies that come in the form of blue squares (identical
 
 
 (2): 
-
 (A)
 now I want to create a game that features the terminal multiplexing nature of tmux
 in this, the user has some main controls: alt + hjkl

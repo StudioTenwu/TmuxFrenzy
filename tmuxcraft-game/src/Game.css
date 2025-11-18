@@ -13,6 +13,7 @@
   top: 50%;
   transform-origin: 0 0;
   transition: transform 0.15s ease-out;
+  overflow: visible; /* Allow sine waves to extend beyond */
 }
 
 .grid-cell {
@@ -21,12 +22,45 @@
   background: transparent;
   box-sizing: border-box;
   transition: border-color 0.1s ease, box-shadow 0.1s ease;
+  overflow: visible;
+  pointer-events: none; /* Prevent any interaction artifacts */
 }
 
 .grid-cell.active {
-  border-color: var(--purple-lighter);
-  border-width: 4px;
-  box-shadow: 0 0 20px var(--purple-light), 0 0 40px var(--purple-light);
+  border: none !important; /* Hide regular border - sine waves will be the border */
+  outline: none !important; /* Ensure no outline */
+  background: transparent !important; /* No background to interfere with waves */
+  box-shadow: none !important; /* Glow comes from the sine wave paths themselves */
+  position: relative;
+  /* Don't use opacity: 0 - instead just hide border, so the div is still interactive */
+  z-index: 10; /* Render above adjacent cells */
+  overflow: visible !important; /* Critical: allow SVG to extend beyond bounds */
+}
+
+/* Hide only the border edge that touches the player */
+.grid-cell.adjacent-left {
+  border-right: none !important; /* Left cell: hide right edge */
+}
+
+.grid-cell.adjacent-right {
+  border-left: none !important; /* Right cell: hide left edge */
+}
+
+.grid-cell.adjacent-top {
+  border-bottom: none !important; /* Top cell: hide bottom edge */
+}
+
+.grid-cell.adjacent-bottom {
+  border-top: none !important; /* Bottom cell: hide top edge */
+}
+
+.grid-cell.dying {
+  border: 3px solid #f7768e !important; /* Override border: none from active */
+  box-shadow:
+    0 0 30px #f7768e,
+    0 0 60px #f7768e,
+    0 0 90px rgba(247, 118, 142, 0.5) !important;
+  transition: none !important;
 }
 
 .debug-info {
@@ -90,11 +124,11 @@
 }
 
 .keybinding-item {
-  font-size: 13px;
+  font-size: 18px;
   color: var(--text-light);
   background: rgba(157, 124, 216, 0.15);
   border: 1px solid var(--purple-dark);
-  border-radius: 4px;
-  padding: 6px 10px;
+  border-radius: 6px;
+  padding: 10px 16px;
   font-family: 'JetBrains Mono', monospace;
 }
