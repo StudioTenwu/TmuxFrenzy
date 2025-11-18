@@ -518,6 +518,15 @@ function Game() {
         {cellsToRender.map(cell => {
           const isPlayer = cell.x === playerPos.x && cell.y === playerPos.y;
 
+          // Check which side this cell is adjacent to player (if any)
+          let adjacentSide = null;
+          if (!isPlayer) {
+            if (cell.x === playerPos.x - 1 && cell.y === playerPos.y) adjacentSide = 'left';
+            else if (cell.x === playerPos.x + 1 && cell.y === playerPos.y) adjacentSide = 'right';
+            else if (cell.y === playerPos.y - 1 && cell.x === playerPos.x) adjacentSide = 'top';
+            else if (cell.y === playerPos.y + 1 && cell.x === playerPos.x) adjacentSide = 'bottom';
+          }
+
           // Calculate death animation transform
           let transform = '';
           if (isPlayer && isDying) {
@@ -532,7 +541,7 @@ function Game() {
           return (
             <div
               key={`${cell.x},${cell.y}`}
-              className={`grid-cell ${isPlayer ? 'active' : ''} ${isPlayer && isDying ? 'dying' : ''}`}
+              className={`grid-cell ${isPlayer ? 'active' : ''} ${adjacentSide ? `adjacent-${adjacentSide}` : ''} ${isPlayer && isDying ? 'dying' : ''}`}
               style={{
                 left: `${cell.x * CELL_SIZE}px`,
                 top: `${cell.y * CELL_SIZE}px`,

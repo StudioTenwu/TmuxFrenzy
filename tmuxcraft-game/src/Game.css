@@ -31,6 +31,24 @@
   box-shadow: none !important; /* Glow comes from the sine wave paths themselves */
   position: relative;
   opacity: 1; /* Ensure cell is visible for SVG rendering */
+  z-index: 10; /* Render above adjacent cells */
+}
+
+/* Hide only the border edge that touches the player */
+.grid-cell.adjacent-left {
+  border-right: none !important; /* Left cell: hide right edge */
+}
+
+.grid-cell.adjacent-right {
+  border-left: none !important; /* Right cell: hide left edge */
+}
+
+.grid-cell.adjacent-top {
+  border-bottom: none !important; /* Top cell: hide bottom edge */
+}
+
+.grid-cell.adjacent-bottom {
+  border-top: none !important; /* Bottom cell: hide top edge */
 }
 
 .grid-cell.dying {
