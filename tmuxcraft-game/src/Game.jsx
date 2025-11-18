@@ -30,6 +30,10 @@ function Game() {
   // Keybindings (tmux format)
   const [keybindings, setKeybindings] = useState(DEFAULT_KEYBINDINGS);
 
+  // Death/respawn state
+  const [isDying, setIsDying] = useState(false);
+  const [deathProgress, setDeathProgress] = useState(0);
+
   const tutorialTimerRef = useRef(null);
 
   // Convert tmux notation to human-readable format
@@ -287,6 +291,48 @@ function Game() {
     return () => clearInterval(interval);
   }, [blocks, tutorialStep]);
 
+  // Collision detection with blocks
+  useEffect(() => {
+    if (isDying) return; // Don't check collisions while dying
+
+    for (const block of blocks) {
+      if (block.x === playerPos.x && block.y === playerPos.y) {
+        // Collision detected! Start death animation
+        setIsDying(true);
+        setDeathProgress(0);
+        break;
+      }
+    }
+  }, [blocks, playerPos, isDying]);
+
+  // Death animation and respawn
+  useEffect(() => {
+    if (!isDying) return;
+
+    const animationDuration = 1000; // 1 second
+    const startTime = Date.now();
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / animationDuration, 1);
+
+      setDeathProgress(progress);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        // Animation complete - respawn
+        setPlayerPos({ x: 0, y: 0 });
+        setCameraOffset({ x: 0, y: 0 });
+        setIsDying(false);
+        setDeathProgress(0);
+        setBlocks([]); // Clear blocks on respawn
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, [isDying]);
+
   // Get all reachable cells from player position using BFS
   const getReachableCells = useCallback(() => {
     const reachable = new Set();
@@ -343,15 +389,29 @@ function Game() {
         {/* Render grid cells */}
         {cellsToRender.map(cell => {
           const isPlayer = cell.x === playerPos.x && cell.y === playerPos.y;
+
+          // Calculate death animation transform
+          let transform = '';
+          if (isPlayer && isDying) {
+            const frequency = 8; // Number of oscillations
+            const amplitude = 20; // Max displacement in pixels
+            const sineWave = Math.sin(deathProgress * frequency * Math.PI * 2) * amplitude * (1 - deathProgress);
+            const scale = 1 - deathProgress * 0.5; // Shrink as dying
+            const rotation = deathProgress * 720; // Rotate 2 full turns
+            transform = `translate(${sineWave}px, ${sineWave * 0.5}px) scale(${scale}) rotate(${rotation}deg)`;
+          }
+
           return (
             <div
               key={`${cell.x},${cell.y}`}
-              className={`grid-cell ${isPlayer ? 'active' : ''}`}
+              className={`grid-cell ${isPlayer ? 'active' : ''} ${isPlayer && isDying ? 'dying' : ''}`}
               style={{
                 left: `${cell.x * CELL_SIZE}px`,
                 top: `${cell.y * CELL_SIZE}px`,
                 width: `${CELL_SIZE}px`,
                 height: `${CELL_SIZE}px`,
+                transform: transform,
+                opacity: isPlayer && isDying ? 1 - deathProgress : 1,
               }}
             />
           );
@@ -390,10 +450,6 @@ function Game() {
         <div className="keybinding-item">→ {formatKeybinding(keybindings.right)}</div>
       </div>
 
-      {/* Debug info */}
-      <div className="debug-info">
-        Position: ({playerPos.x}, {playerPos.y}) | Step: {tutorialStep}
-      </div>
     </div>
   );
 }

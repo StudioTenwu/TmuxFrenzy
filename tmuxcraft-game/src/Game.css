@@ -29,6 +29,15 @@
   box-shadow: 0 0 20px var(--purple-light), 0 0 40px var(--purple-light);
 }
 
+.grid-cell.dying {
+  border-color: #f7768e;
+  box-shadow:
+    0 0 30px #f7768e,
+    0 0 60px #f7768e,
+    0 0 90px rgba(247, 118, 142, 0.5);
+  transition: none !important;
+}
+
 .debug-info {
   position: fixed;
   top: 20px;
