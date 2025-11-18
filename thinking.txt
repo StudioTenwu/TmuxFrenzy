@@ -16,6 +16,7 @@ what if, at the start, we have alt + j (big pixilated text) showing player how t
 ve
 
 
+
 (B - INTRODUCTION OF ENEMIES)
 now I want to introduce enemies that come in the form of blue squares (identical in size to the purple squares)
   let's say that these squares either come from right to left, or top to bottom
@@ -24,7 +25,6 @@ now I want to introduce enemies that come in the form of blue squares (identical
 
 
 (2): 
-
 (A)
 now I want to create a game that features the terminal multiplexing nature of tmux
 in this, the user has some main controls: alt + hjkl
