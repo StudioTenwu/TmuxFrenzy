@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import ConfigUploader from './ConfigUploader';
 import './Game.css';
 
 const CELL_SIZE = 240; // Size of each grid square in pixels (4x bigger)
 const BLOCK_SPEED = 600; // ms per grid cell
+
+// Default keybindings (tmux format)
+const DEFAULT_KEYBINDINGS = {
+  left: 'M-h',
+  down: 'M-j',
+  up: 'M-k',
+  right: 'M-l',
+};
 
 function Game() {
   // Player position in grid coordinates
@@ -18,7 +27,47 @@ function Game() {
   const [tutorialStep, setTutorialStep] = useState(0);
   const [hintText, setHintText] = useState('alt + j');
 
+  // Keybindings (tmux format)
+  const [keybindings, setKeybindings] = useState(DEFAULT_KEYBINDINGS);
+
   const tutorialTimerRef = useRef(null);
+
+  // Parse tmux keybinding to JavaScript event format
+  const parseKeybinding = useCallback((binding) => {
+    if (!binding) return null;
+
+    // M-x = Alt+x, C-x = Ctrl+x
+    const parts = binding.split('-');
+    const modifier = parts[0];
+    const key = parts[1]?.toLowerCase();
+
+    return {
+      key,
+      altKey: modifier === 'M',
+      ctrlKey: modifier === 'C',
+      shiftKey: modifier === 'S',
+    };
+  }, []);
+
+  // Check if event matches a keybinding
+  const matchesKeybinding = useCallback((event, binding) => {
+    const parsed = parseKeybinding(binding);
+    if (!parsed) return false;
+
+    return (
+      event.key.toLowerCase() === parsed.key &&
+      event.altKey === parsed.altKey &&
+      event.ctrlKey === parsed.ctrlKey &&
+      event.shiftKey === parsed.shiftKey
+    );
+  }, [parseKeybinding]);
+
+  // Update hint text when keybindings change
+  useEffect(() => {
+    if (tutorialStep === 0) {
+      setHintText(keybindings.down || 'alt + j');
+    }
+  }, [keybindings, tutorialStep]);
 
   // Define traversable cells - using a Set for O(1) lookup
   // Format: "x,y" as string key
@@ -83,44 +132,49 @@ function Game() {
   // Handle keyboard input
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Check if Alt key is pressed
-      if (!e.altKey) return;
-
       let newX = playerPos.x;
       let newY = playerPos.y;
+      let validKey = false;
+      let direction = null;
 
-      switch (e.key.toLowerCase()) {
-        case 'h': // Left
-          newX = playerPos.x - 1;
-          break;
-        case 'j': // Down
-          newY = playerPos.y + 1;
-          break;
-        case 'k': // Up
-          newY = playerPos.y - 1;
-          break;
-        case 'l': // Right
-          newX = playerPos.x + 1;
-          break;
-        default:
-          return;
+      // Check which direction key was pressed
+      if (matchesKeybinding(e, keybindings.left)) {
+        newX = playerPos.x - 1;
+        validKey = true;
+        direction = 'left';
+      } else if (matchesKeybinding(e, keybindings.down)) {
+        newY = playerPos.y + 1;
+        validKey = true;
+        direction = 'down';
+      } else if (matchesKeybinding(e, keybindings.up)) {
+        newY = playerPos.y - 1;
+        validKey = true;
+        direction = 'up';
+      } else if (matchesKeybinding(e, keybindings.right)) {
+        newX = playerPos.x + 1;
+        validKey = true;
+        direction = 'right';
       }
+
+      if (!validKey) return;
+
+      // Prevent default browser shortcuts
+      e.preventDefault();
 
       // Only move if the target cell is traversable
       if (isTraversable(newX, newY)) {
-        e.preventDefault();
         setPlayerPos({ x: newX, y: newY });
         // Update camera to follow player
         setCameraOffset({ x: newX * CELL_SIZE, y: newY * CELL_SIZE });
 
         // Tutorial progression
-        if (tutorialStep === 0 && e.key.toLowerCase() === 'j') {
+        if (tutorialStep === 0 && direction === 'down') {
           setTutorialStep(1);
-        } else if (tutorialStep === 1 && e.key.toLowerCase() === 'k') {
+        } else if (tutorialStep === 1 && direction === 'up') {
           setTutorialStep(2);
-        } else if (tutorialStep === 2 && e.key.toLowerCase() === 'h') {
+        } else if (tutorialStep === 2 && direction === 'left') {
           setTutorialStep(3);
-        } else if (tutorialStep === 3 && e.key.toLowerCase() === 'l') {
+        } else if (tutorialStep === 3 && direction === 'right') {
           setTutorialStep(4);
         }
       }
@@ -128,7 +182,7 @@ function Game() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [playerPos, isTraversable, tutorialStep]);
+  }, [playerPos, isTraversable, tutorialStep, keybindings, matchesKeybinding]);
 
   // Tutorial sequence
   useEffect(() => {
@@ -138,29 +192,29 @@ function Game() {
 
     switch (tutorialStep) {
       case 0:
-        // Step 0: Show "alt + j" hint
-        setHintText('alt + j');
+        // Step 0: Show down key hint
+        setHintText(keybindings.down || 'alt + j');
         break;
 
       case 1:
-        // Step 1: Spawn block coming from bottom, show "alt + k"
-        setHintText('alt + k');
+        // Step 1: Spawn block coming from bottom, show up key
+        setHintText(keybindings.up || 'alt + k');
         tutorialTimerRef.current = setTimeout(() => {
           setBlocks([{ id: Date.now(), x: 0, y: 5 }]);
         }, 1000);
         break;
 
       case 2:
-        // Step 2: Spawn blocks from top to teach "alt + h"
-        setHintText('alt + h');
+        // Step 2: Spawn blocks from top to teach left key
+        setHintText(keybindings.left || 'alt + h');
         tutorialTimerRef.current = setTimeout(() => {
           setBlocks([{ id: Date.now(), x: 0, y: -5 }]);
         }, 1000);
         break;
 
       case 3:
-        // Step 3: Spawn blocks to teach "alt + l"
-        setHintText('alt + l');
+        // Step 3: Spawn blocks to teach right key
+        setHintText(keybindings.right || 'alt + l');
         tutorialTimerRef.current = setTimeout(() => {
           setBlocks([{ id: Date.now(), x: -2, y: -3 }]);
         }, 1000);
@@ -303,6 +357,17 @@ function Game() {
           {hintText}
         </div>
       )}
+
+      {/* Config uploader */}
+      <ConfigUploader onKeybindingsUpdate={setKeybindings} />
+
+      {/* Keybindings display */}
+      <div className="keybindings-display">
+        <div className="keybinding-item">← {keybindings.left}</div>
+        <div className="keybinding-item">↓ {keybindings.down}</div>
+        <div className="keybinding-item">↑ {keybindings.up}</div>
+        <div className="keybinding-item">→ {keybindings.right}</div>
+      </div>
 
       {/* Debug info */}
       <div className="debug-info">
