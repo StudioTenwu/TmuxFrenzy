@@ -60,30 +60,35 @@ function Game() {
   const generateWavePath = useCallback((side, offset = 0) => {
     const amplitude = 4; // Wave height (reduced)
     const period = 60; // Wave length (increased)
+    const padding = 20; // Extra space for waves and glow
     const points = [];
 
     if (side === 'top') {
+      // Reversed for clockwise flow (right to left)
       for (let x = 0; x <= CELL_SIZE; x += 2) {
-        const y = amplitude * Math.sin(((x + offset) / period) * Math.PI * 2);
-        points.push(`${x},${y}`);
+        const y = padding + amplitude * Math.sin(((x - offset) / period) * Math.PI * 2);
+        points.push(`${x + padding},${y}`);
       }
       return `M ${points.join(' L ')}`;
     } else if (side === 'bottom') {
+      // Normal direction (left to right) for clockwise flow
       for (let x = 0; x <= CELL_SIZE; x += 2) {
-        const y = CELL_SIZE + amplitude * Math.sin(((x + offset) / period) * Math.PI * 2);
-        points.push(`${x},${y}`);
+        const y = CELL_SIZE + padding + amplitude * Math.sin(((x + offset) / period) * Math.PI * 2);
+        points.push(`${x + padding},${y}`);
       }
       return `M ${points.join(' L ')}`;
     } else if (side === 'left') {
+      // Normal direction (bottom to top) for clockwise flow
       for (let y = 0; y <= CELL_SIZE; y += 2) {
-        const x = amplitude * Math.sin(((y + offset) / period) * Math.PI * 2);
-        points.push(`${x},${y}`);
+        const x = padding + amplitude * Math.sin(((y + offset) / period) * Math.PI * 2);
+        points.push(`${x},${y + padding}`);
       }
       return `M ${points.join(' L ')}`;
     } else if (side === 'right') {
+      // Reversed for clockwise flow (top to bottom)
       for (let y = 0; y <= CELL_SIZE; y += 2) {
-        const x = CELL_SIZE + amplitude * Math.sin(((y + offset) / period) * Math.PI * 2);
-        points.push(`${x},${y}`);
+        const x = CELL_SIZE + padding + amplitude * Math.sin(((y - offset) / period) * Math.PI * 2);
+        points.push(`${x},${y + padding}`);
       }
       return `M ${points.join(' L ')}`;
     }
@@ -540,9 +545,15 @@ function Game() {
               {isPlayer && !isDying && (
                 <svg
                   className="wavy-border"
-                  width={CELL_SIZE}
-                  height={CELL_SIZE}
-                  style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+                  width={CELL_SIZE + 40}
+                  height={CELL_SIZE + 40}
+                  style={{
+                    position: 'absolute',
+                    top: -20,
+                    left: -20,
+                    pointerEvents: 'none',
+                    overflow: 'visible'
+                  }}
                 >
                   <defs>
                     <linearGradient id="borderGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -550,15 +561,24 @@ function Game() {
                       <stop offset="50%" stopColor="var(--purple-light)" />
                       <stop offset="100%" stopColor="var(--purple-lighter)" />
                     </linearGradient>
+                    {/* Glow filter for the waves */}
+                    <filter id="waveGlow">
+                      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                      <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
                   </defs>
                   {/* Top wave */}
-                  <path d={generateWavePath('top', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" />
+                  <path d={generateWavePath('top', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" filter="url(#waveGlow)" />
                   {/* Right wave */}
-                  <path d={generateWavePath('right', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" />
+                  <path d={generateWavePath('right', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" filter="url(#waveGlow)" />
                   {/* Bottom wave */}
-                  <path d={generateWavePath('bottom', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" />
+                  <path d={generateWavePath('bottom', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" filter="url(#waveGlow)" />
                   {/* Left wave */}
-                  <path d={generateWavePath('left', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" />
+                  <path d={generateWavePath('left', waveOffset)} fill="none" stroke="url(#borderGradient)" strokeWidth="3" filter="url(#waveGlow)" />
                 </svg>
               )}
             </div>

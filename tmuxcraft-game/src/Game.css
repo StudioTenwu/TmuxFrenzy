@@ -25,12 +25,12 @@
 }
 
 .grid-cell.active {
-  border: none; /* Hide regular border - sine waves will be the border */
-  background: transparent; /* No background to interfere with waves */
-  box-shadow:
-    0 0 20px var(--purple-light),
-    0 0 40px var(--purple-light);
+  border: none !important; /* Hide regular border - sine waves will be the border */
+  outline: none !important; /* Ensure no outline */
+  background: transparent !important; /* No background to interfere with waves */
+  box-shadow: none !important; /* Glow comes from the sine wave paths themselves */
   position: relative;
+  opacity: 1; /* Ensure cell is visible for SVG rendering */
 }
 
 .grid-cell.dying {
