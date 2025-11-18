@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import './Game.css';
 
-const CELL_SIZE = 60; // Size of each grid square in pixels
+const CELL_SIZE = 240; // Size of each grid square in pixels (4x bigger)
 const BLOCK_SPEED = 600; // ms per grid cell
 
 function Game() {
@@ -25,24 +25,52 @@ function Game() {
   const [traversableCells] = useState(() => {
     const cells = new Set();
 
-    // Create initial pattern: squares extending downward
-    // Left column
-    for (let y = -2; y <= 10; y++) {
-      cells.add(`-3,${y}`);
-      cells.add(`-2,${y}`);
+    // Create a weird-shaped pattern
+    // Starting area
+    cells.add('0,0');
+    cells.add('1,0');
+
+    // Path going down and to the right
+    for (let i = 0; i <= 3; i++) {
+      cells.add(`${i},${i + 1}`);
+      cells.add(`${i + 1},${i + 1}`);
     }
 
-    // Center column (starting position)
-    for (let y = -2; y <= 10; y++) {
-      cells.add(`0,${y}`);
-      cells.add(`1,${y}`);
-    }
+    // Branch to the left
+    cells.add('-1,2');
+    cells.add('-2,2');
+    cells.add('-2,3');
+    cells.add('-3,3');
+    cells.add('-3,4');
 
-    // Right column
-    for (let y = -2; y <= 10; y++) {
-      cells.add(`3,${y}`);
-      cells.add(`4,${y}`);
-    }
+    // Weird appendage going up from start
+    cells.add('0,-1');
+    cells.add('1,-1');
+    cells.add('1,-2');
+    cells.add('2,-2');
+    cells.add('2,-3');
+
+    // Another branch from the main path
+    cells.add('3,3');
+    cells.add('4,3');
+    cells.add('5,3');
+    cells.add('5,4');
+    cells.add('5,5');
+    cells.add('6,5');
+
+    // Connect bottom area
+    cells.add('4,5');
+    cells.add('3,5');
+    cells.add('3,6');
+    cells.add('2,6');
+    cells.add('2,7');
+    cells.add('1,7');
+    cells.add('0,7');
+
+    // Lower left area
+    cells.add('-1,5');
+    cells.add('-1,6');
+    cells.add('-2,6');
 
     return cells;
   });
@@ -184,22 +212,48 @@ function Game() {
     return () => clearInterval(interval);
   }, [blocks, tutorialStep]);
 
-  // Get cells to render (only those that are traversable and visible)
-  const getCellsToRender = () => {
-    const cells = [];
-    // Render a larger area around the player
-    const renderRadius = 15;
+  // Get all reachable cells from player position using BFS
+  const getReachableCells = useCallback(() => {
+    const reachable = new Set();
+    const queue = [{ x: playerPos.x, y: playerPos.y }];
+    const visited = new Set([`${playerPos.x},${playerPos.y}`]);
 
-    for (let x = playerPos.x - renderRadius; x <= playerPos.x + renderRadius; x++) {
-      for (let y = playerPos.y - renderRadius; y <= playerPos.y + renderRadius; y++) {
-        if (isTraversable(x, y)) {
-          cells.push({ x, y });
+    while (queue.length > 0) {
+      const current = queue.shift();
+      reachable.add(`${current.x},${current.y}`);
+
+      // Check all 4 directions
+      const neighbors = [
+        { x: current.x - 1, y: current.y },
+        { x: current.x + 1, y: current.y },
+        { x: current.x, y: current.y - 1 },
+        { x: current.x, y: current.y + 1 },
+      ];
+
+      for (const neighbor of neighbors) {
+        const key = `${neighbor.x},${neighbor.y}`;
+        if (!visited.has(key) && isTraversable(neighbor.x, neighbor.y)) {
+          visited.add(key);
+          queue.push(neighbor);
         }
       }
     }
 
+    return reachable;
+  }, [playerPos, isTraversable]);
+
+  // Get cells to render (only reachable cells)
+  const getCellsToRender = useCallback(() => {
+    const reachable = getReachableCells();
+    const cells = [];
+
+    for (const cellKey of reachable) {
+      const [x, y] = cellKey.split(',').map(Number);
+      cells.push({ x, y });
+    }
+
     return cells;
-  };
+  }, [getReachableCells]);
 
   const cellsToRender = getCellsToRender();
 

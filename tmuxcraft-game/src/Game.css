@@ -17,16 +17,16 @@
 
 .grid-cell {
   position: absolute;
-  border: 2px solid var(--purple-dark);
+  border: 3px solid var(--purple-darker);
   background: transparent;
   box-sizing: border-box;
-  transition: border-color 0.1s ease;
+  transition: border-color 0.1s ease, box-shadow 0.1s ease;
 }
 
 .grid-cell.active {
-  border-color: var(--purple-light);
-  border-width: 3px;
-  box-shadow: 0 0 10px var(--purple-light);
+  border-color: var(--purple-lighter);
+  border-width: 4px;
+  box-shadow: 0 0 20px var(--purple-light), 0 0 40px var(--purple-light);
 }
 
 .debug-info {
