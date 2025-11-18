@@ -256,15 +256,12 @@ function Game() {
       const spawnX = playerPos.x + variance;
       const spawnY = playerPos.y - 5; // 5 cells above
 
-      // Check if spawn position is valid (traversable)
-      if (isTraversable(spawnX, spawnY)) {
-        return {
-          id: Date.now() + Math.random(),
-          x: spawnX,
-          y: spawnY,
-          direction: 'down',
-        };
-      }
+      return {
+        id: Date.now() + Math.random(),
+        x: spawnX,
+        y: spawnY,
+        direction: 'down',
+      };
     } else {
       // Spawn to the right of player, moving left
       // Add some vertical variance (-2 to +2)
@@ -272,19 +269,14 @@ function Game() {
       const spawnX = playerPos.x + 5; // 5 cells to the right
       const spawnY = playerPos.y + variance;
 
-      // Check if spawn position is valid (traversable)
-      if (isTraversable(spawnX, spawnY)) {
-        return {
-          id: Date.now() + Math.random(),
-          x: spawnX,
-          y: spawnY,
-          direction: 'left',
-        };
-      }
+      return {
+        id: Date.now() + Math.random(),
+        x: spawnX,
+        y: spawnY,
+        direction: 'left',
+      };
     }
-
-    return null;
-  }, [playerPos, isTraversable]);
+  }, [playerPos]);
 
   // Handle keyboard input
   useEffect(() => {
