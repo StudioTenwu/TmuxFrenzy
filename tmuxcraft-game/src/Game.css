@@ -21,10 +21,12 @@
   background: transparent;
   box-sizing: border-box;
   transition: border-color 0.1s ease, box-shadow 0.1s ease;
+  overflow: visible;
 }
 
 .grid-cell.active {
-  border: none;
+  border: none; /* Hide regular border - sine waves will be the border */
+  background: transparent; /* No background to interfere with waves */
   box-shadow:
     0 0 20px var(--purple-light),
     0 0 40px var(--purple-light);

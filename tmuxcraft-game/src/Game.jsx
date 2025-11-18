@@ -50,7 +50,7 @@ function Game() {
   // Animate wave offset
   useEffect(() => {
     const animationFrame = requestAnimationFrame(function animate() {
-      setWaveOffset(prev => (prev + 0.5) % 240); // Shift wave continuously
+      setWaveOffset(prev => (prev + 0.2) % 240); // Shift wave continuously (slower)
       requestAnimationFrame(animate);
     });
     return () => cancelAnimationFrame(animationFrame);
@@ -58,31 +58,31 @@ function Game() {
 
   // Generate sine wave path
   const generateWavePath = useCallback((side, offset = 0) => {
-    const amplitude = 6; // Wave height
-    const period = 40; // Wave length
+    const amplitude = 4; // Wave height (reduced)
+    const period = 60; // Wave length (increased)
     const points = [];
 
     if (side === 'top') {
       for (let x = 0; x <= CELL_SIZE; x += 2) {
-        const y = amplitude * Math.sin(((x + offset) / period) * Math.PI * 2) + 10;
+        const y = amplitude * Math.sin(((x + offset) / period) * Math.PI * 2);
         points.push(`${x},${y}`);
       }
       return `M ${points.join(' L ')}`;
     } else if (side === 'bottom') {
       for (let x = 0; x <= CELL_SIZE; x += 2) {
-        const y = CELL_SIZE - 10 + amplitude * Math.sin(((x + offset) / period) * Math.PI * 2);
+        const y = CELL_SIZE + amplitude * Math.sin(((x + offset) / period) * Math.PI * 2);
         points.push(`${x},${y}`);
       }
       return `M ${points.join(' L ')}`;
     } else if (side === 'left') {
       for (let y = 0; y <= CELL_SIZE; y += 2) {
-        const x = 10 + amplitude * Math.sin(((y + offset) / period) * Math.PI * 2);
+        const x = amplitude * Math.sin(((y + offset) / period) * Math.PI * 2);
         points.push(`${x},${y}`);
       }
       return `M ${points.join(' L ')}`;
     } else if (side === 'right') {
       for (let y = 0; y <= CELL_SIZE; y += 2) {
-        const x = CELL_SIZE - 10 + amplitude * Math.sin(((y + offset) / period) * Math.PI * 2);
+        const x = CELL_SIZE + amplitude * Math.sin(((y + offset) / period) * Math.PI * 2);
         points.push(`${x},${y}`);
       }
       return `M ${points.join(' L ')}`;
