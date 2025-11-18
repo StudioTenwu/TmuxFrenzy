@@ -13,6 +13,7 @@
   top: 50%;
   transform-origin: 0 0;
   transition: transform 0.15s ease-out;
+  overflow: visible; /* Allow sine waves to extend beyond */
 }
 
 .grid-cell {
@@ -22,6 +23,7 @@
   box-sizing: border-box;
   transition: border-color 0.1s ease, box-shadow 0.1s ease;
   overflow: visible;
+  pointer-events: none; /* Prevent any interaction artifacts */
 }
 
 .grid-cell.active {
@@ -30,8 +32,9 @@
   background: transparent !important; /* No background to interfere with waves */
   box-shadow: none !important; /* Glow comes from the sine wave paths themselves */
   position: relative;
-  opacity: 1; /* Ensure cell is visible for SVG rendering */
+  /* Don't use opacity: 0 - instead just hide border, so the div is still interactive */
   z-index: 10; /* Render above adjacent cells */
+  overflow: visible !important; /* Critical: allow SVG to extend beyond bounds */
 }
 
 /* Hide only the border edge that touches the player */

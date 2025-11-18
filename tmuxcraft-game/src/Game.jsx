@@ -58,9 +58,11 @@ function Game() {
 
   // Generate sine wave path
   const generateWavePath = useCallback((side, offset = 0) => {
-    const amplitude = 2.5; // Wave height (halved)
+    const amplitude = 2.5; // Wave height
     const period = 120; // Wave length (doubled)
-    const padding = 20; // Extra space for waves and glow
+    // Extra large padding to account for glow filter (stdDeviation=4) + stroke width (3px)
+    // Glow can extend ~12-15px beyond the path, so use generous padding
+    const padding = 20;
     const points = [];
 
     if (side === 'top') {
@@ -556,12 +558,14 @@ function Game() {
                   className="wavy-border"
                   width={CELL_SIZE + 40}
                   height={CELL_SIZE + 40}
+                  viewBox={`0 0 ${CELL_SIZE + 40} ${CELL_SIZE + 40}`}
                   style={{
                     position: 'absolute',
                     top: -20,
                     left: -20,
                     pointerEvents: 'none',
-                    overflow: 'visible'
+                    overflow: 'visible',
+                    zIndex: 100
                   }}
                 >
                   <defs>
@@ -571,7 +575,7 @@ function Game() {
                       <stop offset="100%" stopColor="var(--purple-lighter)" />
                     </linearGradient>
                     {/* Glow filter for the waves */}
-                    <filter id="waveGlow">
+                    <filter id="waveGlow" x="-50%" y="-50%" width="200%" height="200%">
                       <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
                       <feMerge>
                         <feMergeNode in="coloredBlur"/>
