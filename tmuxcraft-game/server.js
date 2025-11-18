@@ -45,7 +45,17 @@ Return ONLY a JSON object in this exact format (no markdown, no explanation):
   "right": "M-l"
 }
 
-Where the values are the key bindings (like "M-h" for Alt+h, "C-a h" for Ctrl+a then h, etc.)
+Where the values are the key bindings in tmux format:
+- M-x = Alt+x (Meta key, labeled "Alt" on keyboard)
+- C-x = Ctrl+x (Control key, labeled "Ctrl" on keyboard)
+- S-x = Shift+x (Shift key)
+- Super-x = Super+x (Windows/Command key)
+
+Examples:
+- "bind -n M-h select-pane -L" → use "M-h"
+- "bind -n C-Left select-pane -L" → use "C-Left"
+- "bind C-a h select-pane -L" → use "C-a h" (prefix then key)
+
 If a binding is not found, use null.
 
 Here's the tmux config:

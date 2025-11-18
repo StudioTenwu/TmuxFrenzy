@@ -32,6 +32,27 @@ function Game() {
 
   const tutorialTimerRef = useRef(null);
 
+  // Convert tmux notation to human-readable format
+  const formatKeybinding = useCallback((binding) => {
+    if (!binding) return '';
+
+    // M-x → Alt+x, C-x → Ctrl+x, S-x → Shift+x
+    const modifierMap = {
+      'M': 'Alt',
+      'C': 'Ctrl',
+      'S': 'Shift',
+      'Super': 'Super',
+    };
+
+    const parts = binding.split('-');
+    if (parts.length < 2) return binding;
+
+    const modifier = modifierMap[parts[0]] || parts[0];
+    const key = parts[1];
+
+    return `${modifier}+${key}`;
+  }, []);
+
   // Parse tmux keybinding to JavaScript event format
   const parseKeybinding = useCallback((binding) => {
     if (!binding) return null;
@@ -65,9 +86,9 @@ function Game() {
   // Update hint text when keybindings change
   useEffect(() => {
     if (tutorialStep === 0) {
-      setHintText(keybindings.down || 'alt + j');
+      setHintText(formatKeybinding(keybindings.down) || 'Alt+j');
     }
-  }, [keybindings, tutorialStep]);
+  }, [keybindings, tutorialStep, formatKeybinding]);
 
   // Define traversable cells - using a Set for O(1) lookup
   // Format: "x,y" as string key
@@ -193,12 +214,12 @@ function Game() {
     switch (tutorialStep) {
       case 0:
         // Step 0: Show down key hint
-        setHintText(keybindings.down || 'alt + j');
+        setHintText(formatKeybinding(keybindings.down) || 'Alt+j');
         break;
 
       case 1:
         // Step 1: Spawn block coming from bottom, show up key
-        setHintText(keybindings.up || 'alt + k');
+        setHintText(formatKeybinding(keybindings.up) || 'Alt+k');
         tutorialTimerRef.current = setTimeout(() => {
           setBlocks([{ id: Date.now(), x: 0, y: 5 }]);
         }, 1000);
@@ -206,7 +227,7 @@ function Game() {
 
       case 2:
         // Step 2: Spawn blocks from top to teach left key
-        setHintText(keybindings.left || 'alt + h');
+        setHintText(formatKeybinding(keybindings.left) || 'Alt+h');
         tutorialTimerRef.current = setTimeout(() => {
           setBlocks([{ id: Date.now(), x: 0, y: -5 }]);
         }, 1000);
@@ -214,7 +235,7 @@ function Game() {
 
       case 3:
         // Step 3: Spawn blocks to teach right key
-        setHintText(keybindings.right || 'alt + l');
+        setHintText(formatKeybinding(keybindings.right) || 'Alt+l');
         tutorialTimerRef.current = setTimeout(() => {
           setBlocks([{ id: Date.now(), x: -2, y: -3 }]);
         }, 1000);
@@ -234,7 +255,7 @@ function Game() {
         clearTimeout(tutorialTimerRef.current);
       }
     };
-  }, [tutorialStep]);
+  }, [tutorialStep, keybindings, formatKeybinding]);
 
   // Block movement (snap to grid)
   useEffect(() => {
@@ -363,10 +384,10 @@ function Game() {
 
       {/* Keybindings display */}
       <div className="keybindings-display">
-        <div className="keybinding-item">← {keybindings.left}</div>
-        <div className="keybinding-item">↓ {keybindings.down}</div>
-        <div className="keybinding-item">↑ {keybindings.up}</div>
-        <div className="keybinding-item">→ {keybindings.right}</div>
+        <div className="keybinding-item">← {formatKeybinding(keybindings.left)}</div>
+        <div className="keybinding-item">↓ {formatKeybinding(keybindings.down)}</div>
+        <div className="keybinding-item">↑ {formatKeybinding(keybindings.up)}</div>
+        <div className="keybinding-item">→ {formatKeybinding(keybindings.right)}</div>
       </div>
 
       {/* Debug info */}

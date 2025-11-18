@@ -18,10 +18,17 @@ A vim-style navigation game with tmux keybinding integration powered by Claude A
 npm install
 ```
 
-### 2. Configure Your API Key
+### 2. API Key Setup
 
-Edit the `.env` file and add your Anthropic API key:
+The app reads `ANTHROPIC_API_KEY` from your environment variables (same pattern as PokeCraft).
 
+If you already have the key in your environment, you're all set! Otherwise:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-your-actual-api-key-here
+```
+
+Or create a `.env` file (gitignored):
 ```env
 ANTHROPIC_API_KEY=sk-ant-your-actual-api-key-here
 ```
