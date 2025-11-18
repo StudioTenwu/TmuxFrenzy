@@ -24,7 +24,7 @@ app.post('/api/parse-tmux-config', async (req, res) => {
     }
 
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-opus-20240229',
       max_tokens: 1024,
       messages: [
         {
@@ -66,12 +66,25 @@ ${configContent}`,
     });
 
     const responseText = message.content[0].text;
-    const keybindings = JSON.parse(responseText);
+    console.log('Claude response:', responseText);
+
+    // Try to parse JSON, handling markdown code blocks if present
+    let jsonText = responseText.trim();
+    if (jsonText.startsWith('```')) {
+      // Remove markdown code blocks
+      jsonText = jsonText.replace(/```json?\n?/g, '').replace(/```\n?$/g, '').trim();
+    }
+
+    const keybindings = JSON.parse(jsonText);
 
     res.json({ keybindings });
   } catch (error) {
     console.error('Error parsing tmux config:', error);
-    res.status(500).json({ error: 'Failed to parse tmux config' });
+    const errorMsg = error.message || 'Failed to parse tmux config';
+    res.status(500).json({
+      error: errorMsg,
+      details: error.status ? `API Error ${error.status}` : 'Parsing error'
+    });
   }
 });
 
