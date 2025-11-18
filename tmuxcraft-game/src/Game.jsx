@@ -488,7 +488,7 @@ function Game() {
       if (newBlock) {
         setBlocks(prev => [...prev, newBlock]);
       }
-    }, 2000); // Spawn every 2 seconds
+    }, 800); // Spawn every 0.8 seconds (faster spawning)
 
     return () => clearInterval(spawnInterval);
   }, [spawnBlock]);

@@ -124,11 +124,11 @@
 }
 
 .keybinding-item {
-  font-size: 13px;
+  font-size: 18px;
   color: var(--text-light);
   background: rgba(157, 124, 216, 0.15);
   border: 1px solid var(--purple-dark);
-  border-radius: 4px;
-  padding: 6px 10px;
+  border-radius: 6px;
+  padding: 10px 16px;
   font-family: 'JetBrains Mono', monospace;
 }
