@@ -57,37 +57,56 @@ function MultiplexGame() {
 
   const [targetLine, setTargetLine] = useState(() => generateLine(1));
 
+  // Helper function to check if ranges collectively cover the target segment
+  const isContinuouslyCovered = useCallback((targetStart, targetEnd, ranges, tolerance) => {
+    if (ranges.length === 0) return false;
+
+    // Sort ranges by start position
+    ranges.sort((a, b) => a.start - b.start);
+
+    // Check if ranges cover [targetStart, targetEnd] continuously
+    let covered = targetStart;
+
+    for (const range of ranges) {
+      // If there's a gap, we're not covered
+      if (range.start > covered + tolerance) return false;
+
+      // Extend coverage to the end of this range
+      covered = Math.max(covered, range.end);
+
+      // If we've covered past the target end, we're done
+      if (covered >= targetEnd - tolerance) return true;
+    }
+
+    return false;
+  }, []);
+
   // Check if a line segment is covered by pane boundaries
   const isSegmentCovered = useCallback((segment) => {
     const tolerance = 0.001; // Small tolerance for floating point comparison
 
     if (segment.type === 'vertical') {
-      // Check if any pane has a vertical boundary at segment.position
-      // that covers the range [segment.start, segment.end]
-      return panes.some(pane => {
-        const hasVerticalBoundary =
+      // Collect all y-ranges of panes that have a boundary at segment.position
+      const coverageRanges = panes
+        .filter(pane =>
           Math.abs(pane.x1 - segment.position) < tolerance ||
-          Math.abs(pane.x2 - segment.position) < tolerance;
+          Math.abs(pane.x2 - segment.position) < tolerance
+        )
+        .map(pane => ({ start: pane.y1, end: pane.y2 }));
 
-        if (!hasVerticalBoundary) return false;
-
-        // Check if this boundary covers the segment's y range
-        return pane.y1 <= segment.start + tolerance && pane.y2 >= segment.end - tolerance;
-      });
+      return isContinuouslyCovered(segment.start, segment.end, coverageRanges, tolerance);
     } else {
-      // Horizontal line
-      return panes.some(pane => {
-        const hasHorizontalBoundary =
+      // Horizontal line - collect all x-ranges
+      const coverageRanges = panes
+        .filter(pane =>
           Math.abs(pane.y1 - segment.position) < tolerance ||
-          Math.abs(pane.y2 - segment.position) < tolerance;
+          Math.abs(pane.y2 - segment.position) < tolerance
+        )
+        .map(pane => ({ start: pane.x1, end: pane.x2 }));
 
-        if (!hasHorizontalBoundary) return false;
-
-        // Check if this boundary covers the segment's x range
-        return pane.x1 <= segment.start + tolerance && pane.x2 >= segment.end - tolerance;
-      });
+      return isContinuouslyCovered(segment.start, segment.end, coverageRanges, tolerance);
     }
-  }, [panes]);
+  }, [panes, isContinuouslyCovered]);
 
   // Check if all segments are covered
   const isLineCovered = useCallback(() => {
@@ -144,11 +163,87 @@ function MultiplexGame() {
     });
   }, [activePaneId]);
 
-  // Navigate to adjacent pane in a direction
+  // Delete the active pane (tmux-style: expand adjacent pane to fill space)
+  const deletePane = useCallback(() => {
+    // Can't delete if it's the only pane
+    if (panes.length <= 1) return;
+
+    const activePane = panes.find(p => p.id === activePaneId);
+    if (!activePane) return;
+
+    const tolerance = 0.001;
+
+    // Find adjacent panes (panes that share an edge with the active pane)
+    const adjacentPanes = panes.filter(p => {
+      if (p.id === activePaneId) return false;
+
+      // Check if they share a vertical edge (left or right)
+      const sharesLeft = Math.abs(p.x2 - activePane.x1) < tolerance &&
+        p.y1 < activePane.y2 && p.y2 > activePane.y1;
+      const sharesRight = Math.abs(p.x1 - activePane.x2) < tolerance &&
+        p.y1 < activePane.y2 && p.y2 > activePane.y1;
+
+      // Check if they share a horizontal edge (top or bottom)
+      const sharesTop = Math.abs(p.y2 - activePane.y1) < tolerance &&
+        p.x1 < activePane.x2 && p.x2 > activePane.x1;
+      const sharesBottom = Math.abs(p.y1 - activePane.y2) < tolerance &&
+        p.x1 < activePane.x2 && p.x2 > activePane.x1;
+
+      return sharesLeft || sharesRight || sharesTop || sharesBottom;
+    });
+
+    if (adjacentPanes.length === 0) {
+      // No adjacent panes, just delete it
+      setPanes(prevPanes => {
+        const newPanes = prevPanes.filter(p => p.id !== activePaneId);
+        if (newPanes.length > 0) {
+          setActivePaneId(newPanes[0].id);
+        }
+        return newPanes;
+      });
+      return;
+    }
+
+    // Pick the first adjacent pane to expand (tmux typically chooses based on direction)
+    const expandingPane = adjacentPanes[0];
+
+    setPanes(prevPanes => {
+      return prevPanes.map(p => {
+        if (p.id === expandingPane.id) {
+          // Expand this pane to fill the deleted pane's space
+          const newPane = { ...p };
+
+          // Check which edge is shared and expand accordingly
+          if (Math.abs(p.x2 - activePane.x1) < tolerance) {
+            // Expanding pane is to the left, extend its right edge
+            newPane.x2 = activePane.x2;
+          } else if (Math.abs(p.x1 - activePane.x2) < tolerance) {
+            // Expanding pane is to the right, extend its left edge
+            newPane.x1 = activePane.x1;
+          } else if (Math.abs(p.y2 - activePane.y1) < tolerance) {
+            // Expanding pane is above, extend its bottom edge
+            newPane.y2 = activePane.y2;
+          } else if (Math.abs(p.y1 - activePane.y2) < tolerance) {
+            // Expanding pane is below, extend its top edge
+            newPane.y1 = activePane.y1;
+          }
+
+          return newPane;
+        }
+        return p;
+      }).filter(p => p.id !== activePaneId);
+    });
+
+    // Set focus to the expanding pane
+    setActivePaneId(expandingPane.id);
+  }, [panes, activePaneId]);
+
+  // Navigate to adjacent pane in a direction (with wrapping like tmux)
   const navigatePane = useCallback((direction) => {
     const activePane = panes.find(p => p.id === activePaneId);
     if (!activePane) return;
 
+    const tolerance = 0.001;
     const centerX = (activePane.x1 + activePane.x2) / 2;
     const centerY = (activePane.y1 + activePane.y2) / 2;
 
@@ -158,27 +253,63 @@ function MultiplexGame() {
       // Find panes to the left (their right edge touches our left edge)
       candidates = panes.filter(p =>
         p.id !== activePaneId &&
-        Math.abs(p.x2 - activePane.x1) < 0.001 &&
+        Math.abs(p.x2 - activePane.x1) < tolerance &&
         p.y1 < activePane.y2 && p.y2 > activePane.y1
       );
+
+      // If no candidates and we're at the left edge, wrap to the right
+      if (candidates.length === 0 && activePane.x1 < tolerance) {
+        candidates = panes.filter(p =>
+          p.id !== activePaneId &&
+          Math.abs(p.x1 - 1) < tolerance && // Rightmost panes
+          p.y1 < activePane.y2 && p.y2 > activePane.y1
+        );
+      }
     } else if (direction === 'right') {
       candidates = panes.filter(p =>
         p.id !== activePaneId &&
-        Math.abs(p.x1 - activePane.x2) < 0.001 &&
+        Math.abs(p.x1 - activePane.x2) < tolerance &&
         p.y1 < activePane.y2 && p.y2 > activePane.y1
       );
+
+      // If no candidates and we're at the right edge, wrap to the left
+      if (candidates.length === 0 && Math.abs(activePane.x2 - 1) < tolerance) {
+        candidates = panes.filter(p =>
+          p.id !== activePaneId &&
+          p.x1 < tolerance && // Leftmost panes
+          p.y1 < activePane.y2 && p.y2 > activePane.y1
+        );
+      }
     } else if (direction === 'up') {
       candidates = panes.filter(p =>
         p.id !== activePaneId &&
-        Math.abs(p.y2 - activePane.y1) < 0.001 &&
+        Math.abs(p.y2 - activePane.y1) < tolerance &&
         p.x1 < activePane.x2 && p.x2 > activePane.x1
       );
+
+      // If no candidates and we're at the top edge, wrap to the bottom
+      if (candidates.length === 0 && activePane.y1 < tolerance) {
+        candidates = panes.filter(p =>
+          p.id !== activePaneId &&
+          Math.abs(p.y1 - 1) < tolerance && // Bottom panes
+          p.x1 < activePane.x2 && p.x2 > activePane.x1
+        );
+      }
     } else if (direction === 'down') {
       candidates = panes.filter(p =>
         p.id !== activePaneId &&
-        Math.abs(p.y1 - activePane.y2) < 0.001 &&
+        Math.abs(p.y1 - activePane.y2) < tolerance &&
         p.x1 < activePane.x2 && p.x2 > activePane.x1
       );
+
+      // If no candidates and we're at the bottom edge, wrap to the top
+      if (candidates.length === 0 && Math.abs(activePane.y2 - 1) < tolerance) {
+        candidates = panes.filter(p =>
+          p.id !== activePaneId &&
+          p.y1 < tolerance && // Top panes
+          p.x1 < activePane.x2 && p.x2 > activePane.x1
+        );
+      }
     }
 
     if (candidates.length > 0) {
@@ -190,15 +321,20 @@ function MultiplexGame() {
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Alt+q: horizontal split
+      // Alt+q: vertical split
       if (e.altKey && e.key === 'q') {
+        e.preventDefault();
+        splitVertical();
+      }
+      // Alt+w: horizontal split
+      else if (e.altKey && e.key === 'w') {
         e.preventDefault();
         splitHorizontal();
       }
-      // Alt+w: vertical split
-      else if (e.altKey && e.key === 'w') {
+      // Alt+c: delete pane
+      else if (e.altKey && e.key === 'c') {
         e.preventDefault();
-        splitVertical();
+        deletePane();
       }
       // Alt+h: navigate left
       else if (e.altKey && e.key === 'h') {
@@ -224,7 +360,7 @@ function MultiplexGame() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [splitHorizontal, splitVertical, navigatePane]);
+  }, [splitHorizontal, splitVertical, deletePane, navigatePane]);
 
   return (
     <div className="multiplex-container">
@@ -284,8 +420,9 @@ function MultiplexGame() {
 
       {/* Controls hint */}
       <div className="controls-display">
-        <div className="control-item">Alt+Q: Split Horizontal</div>
-        <div className="control-item">Alt+W: Split Vertical</div>
+        <div className="control-item">Alt+Q: Split Vertical</div>
+        <div className="control-item">Alt+W: Split Horizontal</div>
+        <div className="control-item">Alt+C: Delete Pane</div>
         <div className="control-item">Alt+HJKL: Navigate Panes</div>
       </div>
     </div>
