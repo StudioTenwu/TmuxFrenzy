@@ -453,58 +453,7 @@ function Game() {
     };
   }, [tutorialStep, keybindings, formatKeybinding]);
 
-  // Block movement - NOW SYNCHRONIZED WITH BEATS!
-  // Blocks move on EVERY beat, not on a fixed timer
-  const moveBlocksOnBeat = useCallback(() => {
-    setBlocks(prevBlocks => {
-      if (prevBlocks.length === 0) return prevBlocks;
-
-      const movedBlocks = prevBlocks
-        .map(block => {
-          const oldX = block.x;
-          const oldY = block.y;
-          let newX = block.x;
-          let newY = block.y;
-
-          // Move block in its direction
-          switch (block.direction) {
-            case 'up':
-              newY = block.y - 1;
-              break;
-            case 'down':
-              newY = block.y + 1;
-              break;
-            case 'left':
-              newX = block.x - 1;
-              break;
-            case 'right':
-              newX = block.x + 1;
-              break;
-            default:
-              console.warn('[Block Movement] Unknown direction:', block.direction);
-          }
-
-          // Log first block movement
-          if (block.id === prevBlocks[0].id) {
-            console.log(`[Block Movement ON BEAT] (${oldX},${oldY}) → (${newX},${newY}) [${block.direction}]`);
-          }
-
-          return { ...block, x: newX, y: newY };
-        })
-        .filter(block => {
-          // Remove blocks that are too far from player
-          const distX = Math.abs(block.x - playerPos.x);
-          const distY = Math.abs(block.y - playerPos.y);
-          return distX < 20 && distY < 20;
-        });
-
-      if (movedBlocks.length !== prevBlocks.length) {
-        console.log(`[Block Movement] Cleaned up ${prevBlocks.length - movedBlocks.length} distant blocks`);
-      }
-
-      return movedBlocks;
-    });
-  }, [playerPos]);
+  // Block movement is now inline in beat handler to avoid React batching issues
 
   // Collision detection with blocks
   useEffect(() => {
@@ -573,35 +522,50 @@ function Game() {
         if (currentTime >= nextBeatTime) {
           console.log(`[Beat ${nextBeatIndexRef.current}] ♪ BEAT at ${currentTime.toFixed(0)}ms (expected: ${nextBeatTime.toFixed(0)}ms)`);
 
-          // CRITICAL: Move ALL existing blocks on EVERY beat
-          moveBlocksOnBeat();
-          console.log('  ✓ Moved all blocks');
-
-          // Then spawn new block on beat
+          // CRITICAL: Move blocks AND spawn in SINGLE setState to avoid React batching issues
           const newBlock = spawnBlock();
-          if (newBlock) {
-            console.log('  ✓ Spawned new block:', newBlock);
-            setBlocks(prev => [...prev, newBlock]);
-          } else {
-            console.warn('  - spawnBlock() returned null/undefined!');
-          }
+          const isDownbeat = beatDataRef.current.downbeats.includes(nextBeatTime);
+          const extraBlock = isDownbeat && Math.random() < 0.5 ? spawnBlock() : null;
+
+          setBlocks(prevBlocks => {
+            // FIRST: Move all existing blocks
+            const movedBlocks = prevBlocks.map(block => {
+              let newX = block.x;
+              let newY = block.y;
+
+              switch (block.direction) {
+                case 'up': newY = block.y - 1; break;
+                case 'down': newY = block.y + 1; break;
+                case 'left': newX = block.x - 1; break;
+                case 'right': newX = block.x + 1; break;
+              }
+
+              if (block.id === prevBlocks[0]?.id) {
+                console.log(`  [Move] (${block.x},${block.y}) → (${newX},${newY}) [${block.direction}]`);
+              }
+
+              return { ...block, x: newX, y: newY };
+            }).filter(block => {
+              // Remove blocks too far from player
+              const distX = Math.abs(block.x - playerPos.x);
+              const distY = Math.abs(block.y - playerPos.y);
+              return distX < 20 && distY < 20;
+            });
+
+            // SECOND: Add new block(s) to the moved blocks
+            const blocksToAdd = [newBlock, extraBlock].filter(b => b !== null);
+            if (blocksToAdd.length > 0) {
+              console.log(`  [Spawn] ${blocksToAdd.length} new block(s)`);
+            }
+
+            return [...movedBlocks, ...blocksToAdd];
+          });
 
           // Trigger beat pulse animation
           setBeatPulse(true);
           setTimeout(() => setBeatPulse(false), 100);
 
           nextBeatIndexRef.current++;
-
-          // Optional: Spawn on downbeats too for extra difficulty
-          const isDownbeat = beatDataRef.current.downbeats.includes(nextBeatTime);
-          if (isDownbeat && Math.random() < 0.5) {
-            // 50% chance to spawn an extra block on downbeats
-            console.log('  ✓ Downbeat - spawning extra block');
-            const extraBlock = spawnBlock();
-            if (extraBlock) {
-              setBlocks(prev => [...prev, extraBlock]);
-            }
-          }
         }
       } else {
         // Song finished, loop beats
@@ -618,7 +582,7 @@ function Game() {
       console.log('[Beat Spawn] Cleaning up beat spawn interval');
       clearInterval(beatCheckInterval);
     };
-  }, [spawnBlock, moveBlocksOnBeat]);
+  }, [spawnBlock, playerPos]); // playerPos for distance filtering
 
   // Get cells to render (only reachable cells)
   const getCellsToRender = useCallback(() => {
