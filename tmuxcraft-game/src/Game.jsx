@@ -43,9 +43,34 @@ function Game() {
   const [deathProgress, setDeathProgress] = useState(0);
 
   const tutorialTimerRef = useRef(null);
+  const audioRef = useRef(null);
 
   // Sine wave animation for border
   const [waveOffset, setWaveOffset] = useState(0);
+
+  // Initialize and play background music
+  useEffect(() => {
+    const audio = new Audio('/background_music.mp3');
+    audio.loop = true;
+    audio.volume = 0.3; // Set volume to 30%
+    audioRef.current = audio;
+
+    // Play audio (with error handling for autoplay restrictions)
+    const playAudio = async () => {
+      try {
+        await audio.play();
+      } catch (err) {
+        console.log('Audio autoplay blocked. User interaction required.');
+      }
+    };
+
+    playAudio();
+
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }, []);
 
   // Animate wave offset
   useEffect(() => {
