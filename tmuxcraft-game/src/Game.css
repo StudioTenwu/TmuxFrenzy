@@ -80,7 +80,14 @@
   border: 2px solid var(--blue-bright);
   box-sizing: border-box;
   transition: all 0.15s ease-out;
-  box-shadow: 0 0 15px var(--blue-bright);
+  /* GPU-accelerated layered glow for bloom-like effect */
+  will-change: transform;
+  transform: translateZ(0);
+  box-shadow:
+    0 0 20px 5px rgba(125, 207, 255, 0.8),    /* Inner bright glow */
+    0 0 40px 15px rgba(125, 207, 255, 0.5),   /* Middle soft glow */
+    0 0 80px 30px rgba(125, 207, 255, 0.3),   /* Outer bloom */
+    0 0 120px 45px rgba(125, 207, 255, 0.15); /* Far ambient light */
 }
 
 .hint-text {

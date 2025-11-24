@@ -14,11 +14,11 @@ const DEFAULT_KEYBINDINGS = {
 };
 
 function Game() {
-  // Player position in grid coordinates
-  const [playerPos, setPlayerPos] = useState({ x: 0, y: 0 });
+  // Player position in grid coordinates (starts at center of new map)
+  const [playerPos, setPlayerPos] = useState({ x: 2, y: 0 });
 
   // Camera offset (keeps player centered)
-  const [cameraOffset, setCameraOffset] = useState({ x: 0, y: 0 });
+  const [cameraOffset, setCameraOffset] = useState({ x: 2 * CELL_SIZE, y: 0 });
 
   // Blocks (obstacles) - each has {id, x, y, direction}
   const [blocks, setBlocks] = useState([]);
@@ -113,7 +113,7 @@ function Game() {
   // Animate wave offset
   useEffect(() => {
     const animationFrame = requestAnimationFrame(function animate() {
-      setWaveOffset(prev => (prev + 0.2) % 240); // Shift wave continuously (slower)
+      setWaveOffset(prev => (prev + 0.3) % 240); // Shift wave continuously (1.5x speed)
       requestAnimationFrame(animate);
     });
     return () => cancelAnimationFrame(animationFrame);
@@ -222,53 +222,39 @@ function Game() {
   const [traversableCells] = useState(() => {
     const cells = new Set();
 
-    // Create a weird-shaped pattern
-    // Starting area
-    cells.add('0,0');
-    cells.add('1,0');
+    // New map shape (compact diamond/kite pattern):
+    //  aa       row -2: x=1,2
+    //  aaaa     row -1: x=1,2,3,4
+    //   aaa     row  0: x=2,3,4
+    //   aaaa    row  1: x=2,3,4,5
+    //  aa       row  2: x=1,2
 
-    // Path going down and to the right
-    for (let i = 0; i <= 3; i++) {
-      cells.add(`${i},${i + 1}`);
-      cells.add(`${i + 1},${i + 1}`);
-    }
-
-    // Branch to the left
-    cells.add('-1,2');
-    cells.add('-2,2');
-    cells.add('-2,3');
-    cells.add('-3,3');
-    cells.add('-3,4');
-
-    // Weird appendage going up from start
-    cells.add('0,-1');
-    cells.add('1,-1');
+    // Row -2 (top)
     cells.add('1,-2');
     cells.add('2,-2');
-    cells.add('2,-3');
 
-    // Another branch from the main path
-    cells.add('3,3');
-    cells.add('4,3');
-    cells.add('5,3');
-    cells.add('5,4');
-    cells.add('5,5');
-    cells.add('6,5');
+    // Row -1
+    cells.add('1,-1');
+    cells.add('2,-1');
+    cells.add('3,-1');
+    cells.add('4,-1');
 
-    // Connect bottom area
-    cells.add('4,5');
-    cells.add('3,5');
-    cells.add('3,6');
-    cells.add('2,6');
-    cells.add('2,7');
-    cells.add('1,7');
-    cells.add('0,7');
+    // Row 0 (starting position at 2,0)
+    cells.add('2,0');
+    cells.add('3,0');
+    cells.add('4,0');
 
-    // Lower left area
-    cells.add('-1,5');
-    cells.add('-1,6');
-    cells.add('-2,6');
+    // Row 1
+    cells.add('2,1');
+    cells.add('3,1');
+    cells.add('4,1');
+    cells.add('5,1');
 
+    // Row 2 (bottom)
+    cells.add('1,2');
+    cells.add('2,2');
+
+    console.log('[Map] Traversable cells:', Array.from(cells).sort());
     return cells;
   });
 
@@ -344,6 +330,8 @@ function Game() {
   // Handle keyboard input
   useEffect(() => {
     const handleKeyDown = (e) => {
+      console.log(`[KeyPress] Key: ${e.key}, Alt: ${e.altKey}, Ctrl: ${e.ctrlKey}, Shift: ${e.shiftKey}`);
+
       let newX = playerPos.x;
       let newY = playerPos.y;
       let validKey = false;
@@ -373,8 +361,12 @@ function Game() {
       // Prevent default browser shortcuts
       e.preventDefault();
 
+      console.log(`[Movement] Trying to move ${direction}: (${playerPos.x},${playerPos.y}) → (${newX},${newY})`);
+      console.log(`[Movement] isTraversable(${newX},${newY}):`, isTraversable(newX, newY));
+
       // Only move if the target cell is traversable
       if (isTraversable(newX, newY)) {
+        console.log(`[Movement] ✓ Move allowed!`);
         setPlayerPos({ x: newX, y: newY });
         // Update camera to follow player
         setCameraOffset({ x: newX * CELL_SIZE, y: newY * CELL_SIZE });
@@ -485,9 +477,9 @@ function Game() {
       if (progress < 1) {
         requestAnimationFrame(animate);
       } else {
-        // Animation complete - respawn
-        setPlayerPos({ x: 0, y: 0 });
-        setCameraOffset({ x: 0, y: 0 });
+        // Animation complete - respawn at starting position
+        setPlayerPos({ x: 2, y: 0 });
+        setCameraOffset({ x: 2 * CELL_SIZE, y: 0 * CELL_SIZE });
         setIsDying(false);
         setDeathProgress(0);
         setBlocks([]); // Clear blocks on respawn
@@ -665,12 +657,21 @@ function Game() {
                       <stop offset="50%" stopColor="var(--purple-light)" />
                       <stop offset="100%" stopColor="var(--purple-lighter)" />
                     </linearGradient>
-                    {/* Glow filter for the waves */}
-                    <filter id="waveGlow" x="-50%" y="-50%" width="200%" height="200%">
-                      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                    {/* Enhanced multi-layer glow filter for bloom effect */}
+                    <filter id="waveGlow" x="-100%" y="-100%" width="300%" height="300%">
+                      {/* Inner bright glow */}
+                      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur1"/>
+                      {/* Middle soft glow */}
+                      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur2"/>
+                      {/* Outer bloom */}
+                      <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="blur3"/>
+                      {/* Far ambient light */}
+                      <feGaussianBlur in="SourceGraphic" stdDeviation="25" result="blur4"/>
                       <feMerge>
-                        <feMergeNode in="coloredBlur"/>
-                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="blur4"/>
+                        <feMergeNode in="blur3"/>
+                        <feMergeNode in="blur2"/>
+                        <feMergeNode in="blur1"/>
                         <feMergeNode in="SourceGraphic"/>
                       </feMerge>
                     </filter>
