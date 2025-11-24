@@ -81,32 +81,90 @@ function MultiplexGame() {
     return false;
   }, []);
 
-  // Check if a line segment is covered by pane boundaries
-  const isSegmentCovered = useCallback((segment) => {
-    const tolerance = 0.001; // Small tolerance for floating point comparison
+  // Get covered and uncovered sub-segments for a line segment
+  const getSegmentCoverage = useCallback((segment) => {
+    const tolerance = 0.001;
+    let coverageRanges;
 
     if (segment.type === 'vertical') {
-      // Collect all y-ranges of panes that have a boundary at segment.position
-      const coverageRanges = panes
+      coverageRanges = panes
         .filter(pane =>
           Math.abs(pane.x1 - segment.position) < tolerance ||
           Math.abs(pane.x2 - segment.position) < tolerance
         )
         .map(pane => ({ start: pane.y1, end: pane.y2 }));
-
-      return isContinuouslyCovered(segment.start, segment.end, coverageRanges, tolerance);
     } else {
-      // Horizontal line - collect all x-ranges
-      const coverageRanges = panes
+      coverageRanges = panes
         .filter(pane =>
           Math.abs(pane.y1 - segment.position) < tolerance ||
           Math.abs(pane.y2 - segment.position) < tolerance
         )
         .map(pane => ({ start: pane.x1, end: pane.x2 }));
-
-      return isContinuouslyCovered(segment.start, segment.end, coverageRanges, tolerance);
     }
-  }, [panes, isContinuouslyCovered]);
+
+    // Sort and merge overlapping ranges
+    coverageRanges.sort((a, b) => a.start - b.start);
+    const mergedRanges = [];
+
+    for (const range of coverageRanges) {
+      if (mergedRanges.length === 0) {
+        mergedRanges.push({ ...range });
+      } else {
+        const lastRange = mergedRanges[mergedRanges.length - 1];
+        if (range.start <= lastRange.end + tolerance) {
+          // Merge overlapping ranges
+          lastRange.end = Math.max(lastRange.end, range.end);
+        } else {
+          mergedRanges.push({ ...range });
+        }
+      }
+    }
+
+    // Generate sub-segments with coverage status
+    const subSegments = [];
+    let currentPos = segment.start;
+
+    for (const range of mergedRanges) {
+      // Add uncovered segment before this range (if any)
+      if (range.start > currentPos + tolerance) {
+        subSegments.push({
+          start: currentPos,
+          end: range.start,
+          covered: false
+        });
+      }
+
+      // Add covered segment (clipped to segment bounds)
+      const coveredStart = Math.max(currentPos, range.start);
+      const coveredEnd = Math.min(segment.end, range.end);
+      if (coveredEnd > coveredStart + tolerance) {
+        subSegments.push({
+          start: coveredStart,
+          end: coveredEnd,
+          covered: true
+        });
+      }
+
+      currentPos = Math.max(currentPos, range.end);
+    }
+
+    // Add final uncovered segment (if any)
+    if (currentPos < segment.end - tolerance) {
+      subSegments.push({
+        start: currentPos,
+        end: segment.end,
+        covered: false
+      });
+    }
+
+    return subSegments;
+  }, [panes]);
+
+  // Check if a line segment is covered by pane boundaries
+  const isSegmentCovered = useCallback((segment) => {
+    const subSegments = getSegmentCoverage(segment);
+    return subSegments.every(sub => sub.covered);
+  }, [getSegmentCoverage]);
 
   // Check if all segments are covered
   const isLineCovered = useCallback(() => {
@@ -163,7 +221,7 @@ function MultiplexGame() {
     });
   }, [activePaneId]);
 
-  // Delete the active pane (tmux-style: expand adjacent pane to fill space)
+  // Delete the active pane (tmux-style: merge with adjacent sibling pane)
   const deletePane = useCallback(() => {
     // Can't delete if it's the only pane
     if (panes.length <= 1) return;
@@ -173,59 +231,100 @@ function MultiplexGame() {
 
     const tolerance = 0.001;
 
-    // Find adjacent panes (panes that share an edge with the active pane)
-    const adjacentPanes = panes.filter(p => {
-      if (p.id === activePaneId) return false;
+    // Find all adjacent panes and calculate shared edge lengths
+    const adjacentPanes = panes
+      .filter(p => p.id !== activePaneId)
+      .map(p => {
+        let sharedEdgeLength = 0;
+        let direction = null;
+        let edgeType = null;
 
-      // Check if they share a vertical edge (left or right)
-      const sharesLeft = Math.abs(p.x2 - activePane.x1) < tolerance &&
-        p.y1 < activePane.y2 && p.y2 > activePane.y1;
-      const sharesRight = Math.abs(p.x1 - activePane.x2) < tolerance &&
-        p.y1 < activePane.y2 && p.y2 > activePane.y1;
+        // Check vertical edges (left or right)
+        if (Math.abs(p.x2 - activePane.x1) < tolerance) {
+          // Left neighbor
+          const overlapStart = Math.max(p.y1, activePane.y1);
+          const overlapEnd = Math.min(p.y2, activePane.y2);
+          if (overlapEnd > overlapStart) {
+            sharedEdgeLength = overlapEnd - overlapStart;
+            direction = 'left';
+            edgeType = 'vertical';
+          }
+        } else if (Math.abs(p.x1 - activePane.x2) < tolerance) {
+          // Right neighbor
+          const overlapStart = Math.max(p.y1, activePane.y1);
+          const overlapEnd = Math.min(p.y2, activePane.y2);
+          if (overlapEnd > overlapStart) {
+            sharedEdgeLength = overlapEnd - overlapStart;
+            direction = 'right';
+            edgeType = 'vertical';
+          }
+        }
 
-      // Check if they share a horizontal edge (top or bottom)
-      const sharesTop = Math.abs(p.y2 - activePane.y1) < tolerance &&
-        p.x1 < activePane.x2 && p.x2 > activePane.x1;
-      const sharesBottom = Math.abs(p.y1 - activePane.y2) < tolerance &&
-        p.x1 < activePane.x2 && p.x2 > activePane.x1;
+        // Check horizontal edges (top or bottom)
+        if (Math.abs(p.y2 - activePane.y1) < tolerance) {
+          // Top neighbor
+          const overlapStart = Math.max(p.x1, activePane.x1);
+          const overlapEnd = Math.min(p.x2, activePane.x2);
+          if (overlapEnd > overlapStart) {
+            const length = overlapEnd - overlapStart;
+            if (length > sharedEdgeLength) {
+              sharedEdgeLength = length;
+              direction = 'top';
+              edgeType = 'horizontal';
+            }
+          }
+        } else if (Math.abs(p.y1 - activePane.y2) < tolerance) {
+          // Bottom neighbor
+          const overlapStart = Math.max(p.x1, activePane.x1);
+          const overlapEnd = Math.min(p.x2, activePane.x2);
+          if (overlapEnd > overlapStart) {
+            const length = overlapEnd - overlapStart;
+            if (length > sharedEdgeLength) {
+              sharedEdgeLength = length;
+              direction = 'bottom';
+              edgeType = 'horizontal';
+            }
+          }
+        }
 
-      return sharesLeft || sharesRight || sharesTop || sharesBottom;
-    });
+        return { pane: p, sharedEdgeLength, direction, edgeType };
+      })
+      .filter(item => item.sharedEdgeLength > 0);
 
     if (adjacentPanes.length === 0) {
-      // No adjacent panes, just delete it
-      setPanes(prevPanes => {
-        const newPanes = prevPanes.filter(p => p.id !== activePaneId);
-        if (newPanes.length > 0) {
-          setActivePaneId(newPanes[0].id);
-        }
-        return newPanes;
-      });
+      // No adjacent panes, shouldn't happen but handle gracefully
+      setPanes(prevPanes => prevPanes.filter(p => p.id !== activePaneId));
+      if (panes.length > 1) setActivePaneId(panes.find(p => p.id !== activePaneId).id);
       return;
     }
 
-    // Pick the first adjacent pane to expand (tmux typically chooses based on direction)
-    const expandingPane = adjacentPanes[0];
+    // Sort by shared edge length (longest edge first) - this finds the "sibling" pane
+    adjacentPanes.sort((a, b) => b.sharedEdgeLength - a.sharedEdgeLength);
+    const { pane: expandingPane, direction } = adjacentPanes[0];
 
     setPanes(prevPanes => {
       return prevPanes.map(p => {
         if (p.id === expandingPane.id) {
-          // Expand this pane to fill the deleted pane's space
+          // Expand this pane to absorb the deleted pane
           const newPane = { ...p };
 
-          // Check which edge is shared and expand accordingly
-          if (Math.abs(p.x2 - activePane.x1) < tolerance) {
-            // Expanding pane is to the left, extend its right edge
-            newPane.x2 = activePane.x2;
-          } else if (Math.abs(p.x1 - activePane.x2) < tolerance) {
-            // Expanding pane is to the right, extend its left edge
-            newPane.x1 = activePane.x1;
-          } else if (Math.abs(p.y2 - activePane.y1) < tolerance) {
-            // Expanding pane is above, extend its bottom edge
-            newPane.y2 = activePane.y2;
-          } else if (Math.abs(p.y1 - activePane.y2) < tolerance) {
-            // Expanding pane is below, extend its top edge
-            newPane.y1 = activePane.y1;
+          switch (direction) {
+            case 'left':
+              // Expanding pane is to the left, extend right edge
+              newPane.x2 = Math.max(newPane.x2, activePane.x2);
+              break;
+            case 'right':
+              // Expanding pane is to the right, extend left edge
+              newPane.x1 = Math.min(newPane.x1, activePane.x1);
+              break;
+            case 'top':
+              // Expanding pane is above, extend bottom edge
+              newPane.y2 = Math.max(newPane.y2, activePane.y2);
+              break;
+            case 'bottom':
+              // Expanding pane is below, extend top edge
+              newPane.y1 = Math.min(newPane.y1, activePane.y1);
+              break;
           }
 
           return newPane;
@@ -379,39 +478,41 @@ function MultiplexGame() {
           />
         ))}
 
-        {/* Render target line segments */}
+        {/* Render target line segments with partial coverage */}
         {targetLine.map((segment, idx) => {
-          const isCovered = isSegmentCovered(segment);
+          const subSegments = getSegmentCoverage(segment);
 
-          if (segment.type === 'vertical') {
-            return (
-              <div
-                key={idx}
-                className={`line-segment ${isCovered ? 'covered' : 'uncovered'}`}
-                style={{
-                  left: `${segment.position * 100}%`,
-                  top: `${segment.start * 100}%`,
-                  width: '4px',
-                  height: `${(segment.end - segment.start) * 100}%`,
-                  transform: 'translateX(-2px)'
-                }}
-              />
-            );
-          } else {
-            return (
-              <div
-                key={idx}
-                className={`line-segment ${isCovered ? 'covered' : 'uncovered'}`}
-                style={{
-                  left: `${segment.start * 100}%`,
-                  top: `${segment.position * 100}%`,
-                  width: `${(segment.end - segment.start) * 100}%`,
-                  height: '4px',
-                  transform: 'translateY(-2px)'
-                }}
-              />
-            );
-          }
+          return subSegments.map((subSeg, subIdx) => {
+            if (segment.type === 'vertical') {
+              return (
+                <div
+                  key={`${idx}-${subIdx}`}
+                  className={`line-segment ${subSeg.covered ? 'covered' : 'uncovered'}`}
+                  style={{
+                    left: `${segment.position * 100}%`,
+                    top: `${subSeg.start * 100}%`,
+                    width: '4px',
+                    height: `${(subSeg.end - subSeg.start) * 100}%`,
+                    transform: 'translateX(-2px)'
+                  }}
+                />
+              );
+            } else {
+              return (
+                <div
+                  key={`${idx}-${subIdx}`}
+                  className={`line-segment ${subSeg.covered ? 'covered' : 'uncovered'}`}
+                  style={{
+                    left: `${subSeg.start * 100}%`,
+                    top: `${segment.position * 100}%`,
+                    width: `${(subSeg.end - subSeg.start) * 100}%`,
+                    height: '4px',
+                    transform: 'translateY(-2px)'
+                  }}
+                />
+              );
+            }
+          });
         })}
       </div>
 
