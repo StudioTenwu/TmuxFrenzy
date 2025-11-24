@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import ConfigUploader from './ConfigUploader';
 import './Game.css';
 
-const CELL_SIZE = 240; // Size of each grid square in pixels (4x bigger)
+const CELL_SIZE = 240; // Size of each grid square in pixels 
 const BLOCK_SPEED = 600; // ms per grid cell
 
 // Default keybindings (tmux format)
