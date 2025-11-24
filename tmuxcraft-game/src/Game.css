@@ -132,3 +132,30 @@
   padding: 10px 16px;
   font-family: 'JetBrains Mono', monospace;
 }
+
+/* Beat indicator */
+.beat-indicator {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.beat-icon {
+  font-size: 48px;
+  color: var(--purple-light);
+  text-shadow: 0 0 10px var(--purple-light);
+  transition: all 0.1s ease-out;
+  transform: scale(1);
+  opacity: 0.6;
+}
+
+.beat-indicator.pulse .beat-icon {
+  transform: scale(1.4);
+  opacity: 1;
+  text-shadow:
+    0 0 20px var(--purple-light),
+    0 0 40px var(--purple-light),
+    0 0 60px var(--purple-dark);
+}

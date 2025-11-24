@@ -23,6 +23,11 @@ function Game() {
   // Blocks (obstacles) - each has {id, x, y, direction}
   const [blocks, setBlocks] = useState([]);
 
+  // Debug: Log whenever blocks state changes
+  useEffect(() => {
+    console.log(`[Blocks State] Updated - now ${blocks.length} blocks:`, blocks);
+  }, [blocks]);
+
   // Tutorial state
   const [tutorialStep, setTutorialStep] = useState(0);
   const [hintText, setHintText] = useState('');
@@ -44,21 +49,38 @@ function Game() {
 
   const tutorialTimerRef = useRef(null);
   const audioRef = useRef(null);
+  const beatDataRef = useRef(null);
+  const nextBeatIndexRef = useRef(0);
+  const gameStartTimeRef = useRef(null);
 
   // Sine wave animation for border
   const [waveOffset, setWaveOffset] = useState(0);
 
-  // Initialize and play background music
+  // Beat indicator pulse
+  const [beatPulse, setBeatPulse] = useState(false);
+
+  // Initialize and play background music + load beat data
   useEffect(() => {
     const audio = new Audio('/background_music.mp3');
     audio.loop = true;
     audio.volume = 0.3; // Set volume to 30%
     audioRef.current = audio;
 
+    // Load beat data
+    fetch('/beat_data.json')
+      .then(res => res.json())
+      .then(data => {
+        beatDataRef.current = data;
+        console.log(`Loaded ${data.beats.length} beats at ${data.tempo.toFixed(1)} BPM`);
+      })
+      .catch(err => console.error('Failed to load beat data:', err));
+
     // Play audio (with error handling for autoplay restrictions)
     const playAudio = async () => {
       try {
         await audio.play();
+        gameStartTimeRef.current = Date.now();
+        console.log('Game started, music playing');
       } catch (err) {
         console.log('Audio autoplay blocked. User interaction required.');
       }
@@ -416,12 +438,15 @@ function Game() {
   }, [tutorialStep, keybindings, formatKeybinding]);
 
   // Block movement (Tetris-style - constant speed in one direction)
+  // This runs continuously, checking prevBlocks inside
   useEffect(() => {
-    if (blocks.length === 0) return;
+    console.log('[Block Movement] Setting up continuous movement interval');
 
     const interval = setInterval(() => {
       setBlocks(prevBlocks => {
-        return prevBlocks
+        if (prevBlocks.length === 0) return prevBlocks;
+
+        const movedBlocks = prevBlocks
           .map(block => {
             let newX = block.x;
             let newY = block.y;
@@ -440,6 +465,8 @@ function Game() {
               case 'right':
                 newX = block.x + 1;
                 break;
+              default:
+                console.warn('[Block Movement] Unknown direction:', block.direction);
             }
 
             return { ...block, x: newX, y: newY };
@@ -450,11 +477,24 @@ function Game() {
             const distY = Math.abs(block.y - playerPos.y);
             return distX < 20 && distY < 20;
           });
+
+        if (movedBlocks.length > 0 && prevBlocks.length > 0) {
+          console.log(`[Block Movement] Moved ${movedBlocks.length} blocks`);
+        }
+
+        if (movedBlocks.length !== prevBlocks.length) {
+          console.log(`[Block Movement] Cleaned up ${prevBlocks.length - movedBlocks.length} distant blocks`);
+        }
+
+        return movedBlocks;
       });
     }, BLOCK_SPEED);
 
-    return () => clearInterval(interval);
-  }, [blocks, playerPos]);
+    return () => {
+      console.log('[Block Movement] Cleaning up movement interval');
+      clearInterval(interval);
+    };
+  }, [playerPos]);
 
   // Collision detection with blocks
   useEffect(() => {
@@ -498,16 +538,71 @@ function Game() {
     requestAnimationFrame(animate);
   }, [isDying]);
 
-  // Continuous block spawning
+  // Beat-synchronized block spawning
   useEffect(() => {
-    const spawnInterval = setInterval(() => {
-      const newBlock = spawnBlock();
-      if (newBlock) {
-        setBlocks(prev => [...prev, newBlock]);
-      }
-    }, 800); // Spawn every 0.8 seconds (faster spawning)
+    if (!beatDataRef.current || !gameStartTimeRef.current) {
+      console.log('[Beat Spawn] Waiting for beat data and game start...');
+      console.log('  - beatDataRef.current:', beatDataRef.current ? 'loaded' : 'null');
+      console.log('  - gameStartTimeRef.current:', gameStartTimeRef.current);
+      return; // Wait for beat data to load and game to start
+    }
 
-    return () => clearInterval(spawnInterval);
+    console.log('[Beat Spawn] Starting beat spawn system');
+    console.log('  - Total beats:', beatDataRef.current.beats.length);
+    console.log('  - First beat at:', beatDataRef.current.beats[0], 'ms');
+    console.log('  - Tempo:', beatDataRef.current.tempo, 'BPM');
+
+    const checkBeatSpawn = () => {
+      const currentTime = Date.now() - gameStartTimeRef.current;
+      const beats = beatDataRef.current.beats;
+
+      // Check if we've reached the next beat
+      if (nextBeatIndexRef.current < beats.length) {
+        const nextBeatTime = beats[nextBeatIndexRef.current];
+
+        if (currentTime >= nextBeatTime) {
+          // Spawn block on beat!
+          console.log(`[Beat ${nextBeatIndexRef.current}] Spawning at ${currentTime.toFixed(0)}ms (beat time: ${nextBeatTime.toFixed(0)}ms)`);
+          const newBlock = spawnBlock();
+          if (newBlock) {
+            console.log('  - Block spawned:', newBlock);
+            setBlocks(prev => [...prev, newBlock]);
+          } else {
+            console.warn('  - spawnBlock() returned null/undefined!');
+          }
+
+          // Trigger beat pulse animation
+          setBeatPulse(true);
+          setTimeout(() => setBeatPulse(false), 100);
+
+          nextBeatIndexRef.current++;
+
+          // Optional: Spawn on downbeats too for extra difficulty
+          const isDownbeat = beatDataRef.current.downbeats.includes(nextBeatTime);
+          if (isDownbeat && Math.random() < 0.5) {
+            // 50% chance to spawn an extra block on downbeats
+            console.log('  - Downbeat detected, spawning extra block');
+            const extraBlock = spawnBlock();
+            if (extraBlock) {
+              setBlocks(prev => [...prev, extraBlock]);
+            }
+          }
+        }
+      } else {
+        // Song finished, loop beats
+        console.log('[Beat Spawn] Song finished, looping...');
+        nextBeatIndexRef.current = 0;
+        gameStartTimeRef.current = Date.now();
+      }
+    };
+
+    // Check for beats more frequently for precision
+    const beatCheckInterval = setInterval(checkBeatSpawn, 50); // Check every 50ms
+
+    return () => {
+      console.log('[Beat Spawn] Cleaning up beat spawn interval');
+      clearInterval(beatCheckInterval);
+    };
   }, [spawnBlock]);
 
   // Get cells to render (only reachable cells)
@@ -646,6 +741,11 @@ function Game() {
         <div className="keybinding-item">↓ {formatKeybinding(keybindings.down)}</div>
         <div className="keybinding-item">↑ {formatKeybinding(keybindings.up)}</div>
         <div className="keybinding-item">→ {formatKeybinding(keybindings.right)}</div>
+      </div>
+
+      {/* Beat indicator */}
+      <div className={`beat-indicator ${beatPulse ? 'pulse' : ''}`}>
+        <div className="beat-icon">♪</div>
       </div>
 
     </div>

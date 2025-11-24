@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Beat Sync Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1b26;
+            color: #c0caf5;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #5a4a7a;
+            border-radius: 5px;
+        }
+        .pass { color: #9ece6a; }
+        .fail { color: #f7768e; }
+        .info { color: #7dcfff; }
+        button {
+            background: #bb9af7;
+            color: #1a1b26;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        #beat-indicator {
+            width: 50px;
+            height: 50px;
+            background: #bb9af7;
+            border-radius: 50%;
+            display: inline-block;
+            transition: transform 0.1s;
+        }
+        #beat-indicator.pulse {
+            transform: scale(1.5);
+            box-shadow: 0 0 20px #bb9af7;
+        }
+    </style>
+</head>
+<body>
+    <h1>Beat Synchronization Test Suite</h1>
+
+    <div class="test-section">
+        <h2>1. File Existence Test</h2>
+        <div id="file-test">Testing...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Beat Data Structure Test</h2>
+        <div id="structure-test">Testing...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Audio Playback Test</h2>
+        <button onclick="testAudio()">Play Audio</button>
+        <button onclick="stopAudio()">Stop Audio</button>
+        <div id="audio-test">Click "Play Audio" to test</div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Beat Timing Test</h2>
+        <button onclick="startBeatTest()">Start Beat Test</button>
+        <button onclick="stopBeatTest()">Stop Beat Test</button>
+        <div id="beat-indicator"></div>
+        <div id="beat-test">Click "Start Beat Test" to begin</div>
+    </div>
+
+    <script>
+        let audio = null;
+        let beatData = null;
+        let beatTestInterval = null;
+        let gameStartTime = null;
+        let nextBeatIndex = 0;
+
+        // Test 1: File existence
+        async function testFileExistence() {
+            const files = [
+                '/beat_data.json',
+                '/background_music.mp3'
+            ];
+
+            let results = '<ul>';
+            for (const file of files) {
+                try {
+                    const response = await fetch(file, { method: 'HEAD' });
+                    if (response.ok) {
+                        results += `<li class="pass">✓ ${file} exists (${response.headers.get('content-length')} bytes)</li>`;
+                    } else {
+                        results += `<li class="fail">✗ ${file} not found (${response.status})</li>`;
+                    }
+                } catch (err) {
+                    results += `<li class="fail">✗ ${file} error: ${err.message}</li>`;
+                }
+            }
+            results += '</ul>';
+            document.getElementById('file-test').innerHTML = results;
+        }
+
+        // Test 2: Beat data structure
+        async function testBeatDataStructure() {
+            try {
+                const response = await fetch('/beat_data.json');
+                beatData = await response.json();
+
+                let results = '<ul>';
+                results += `<li class="pass">✓ JSON parsed successfully</li>`;
+                results += `<li class="info">  - Beats: ${beatData.beats.length}</li>`;
+                results += `<li class="info">  - Downbeats: ${beatData.downbeats.length}</li>`;
+                results += `<li class="info">  - Tempo: ${beatData.tempo.toFixed(2)} BPM</li>`;
+                results += `<li class="info">  - Duration: ${beatData.duration_seconds.toFixed(2)}s</li>`;
+                results += `<li class="info">  - First beat: ${beatData.beats[0].toFixed(1)}ms</li>`;
+                results += `<li class="info">  - Avg interval: ${beatData.average_beat_interval_ms.toFixed(1)}ms</li>`;
+
+                // Validate structure
+                if (Array.isArray(beatData.beats) && beatData.beats.length > 0) {
+                    results += `<li class="pass">✓ Beats array is valid</li>`;
+                } else {
+                    results += `<li class="fail">✗ Beats array is invalid</li>`;
+                }
+
+                if (Array.isArray(beatData.downbeats)) {
+                    results += `<li class="pass">✓ Downbeats array is valid</li>`;
+                } else {
+                    results += `<li class="fail">✗ Downbeats array is invalid</li>`;
+                }
+
+                results += '</ul>';
+                document.getElementById('structure-test').innerHTML = results;
+            } catch (err) {
+                document.getElementById('structure-test').innerHTML =
+                    `<p class="fail">✗ Error: ${err.message}</p>`;
+            }
+        }
+
+        // Test 3: Audio playback
+        function testAudio() {
+            if (!audio) {
+                audio = new Audio('/background_music.mp3');
+                audio.volume = 0.3;
+            }
+
+            audio.play()
+                .then(() => {
+                    document.getElementById('audio-test').innerHTML =
+                        '<p class="pass">✓ Audio playing successfully</p>';
+                })
+                .catch(err => {
+                    document.getElementById('audio-test').innerHTML =
+                        `<p class="fail">✗ Audio error: ${err.message}</p>`;
+                });
+        }
+
+        function stopAudio() {
+            if (audio) {
+                audio.pause();
+                audio.currentTime = 0;
+                document.getElementById('audio-test').innerHTML =
+                    '<p class="info">Audio stopped</p>';
+            }
+        }
+
+        // Test 4: Beat timing
+        function startBeatTest() {
+            if (!beatData) {
+                document.getElementById('beat-test').innerHTML =
+                    '<p class="fail">✗ Load beat data first (run Test 2)</p>';
+                return;
+            }
+
+            gameStartTime = Date.now();
+            nextBeatIndex = 0;
+            let beatCount = 0;
+
+            document.getElementById('beat-test').innerHTML =
+                '<p class="info">Beat test running... watching for beats</p>' +
+                '<div id="beat-log"></div>';
+
+            beatTestInterval = setInterval(() => {
+                const currentTime = Date.now() - gameStartTime;
+                const beats = beatData.beats;
+
+                if (nextBeatIndex < beats.length) {
+                    const nextBeatTime = beats[nextBeatIndex];
+
+                    if (currentTime >= nextBeatTime) {
+                        beatCount++;
+                        const indicator = document.getElementById('beat-indicator');
+                        indicator.classList.add('pulse');
+                        setTimeout(() => indicator.classList.remove('pulse'), 100);
+
+                        const log = document.getElementById('beat-log');
+                        const entry = document.createElement('div');
+                        entry.className = 'pass';
+                        entry.textContent = `Beat ${nextBeatIndex + 1} at ${currentTime.toFixed(0)}ms (expected: ${nextBeatTime.toFixed(0)}ms, diff: ${(currentTime - nextBeatTime).toFixed(0)}ms)`;
+                        log.appendChild(entry);
+
+                        // Keep only last 10 beats
+                        while (log.children.length > 10) {
+                            log.removeChild(log.firstChild);
+                        }
+
+                        nextBeatIndex++;
+                    }
+                }
+
+                // Update current time display
+                const timeDisplay = document.getElementById('beat-test').querySelector('.info');
+                if (timeDisplay) {
+                    timeDisplay.textContent = `Beat test running... ${beatCount} beats detected | Current time: ${currentTime.toFixed(0)}ms | Next beat: ${nextBeatIndex < beats.length ? beats[nextBeatIndex].toFixed(0) : 'END'}ms`;
+                }
+            }, 50);
+        }
+
+        function stopBeatTest() {
+            if (beatTestInterval) {
+                clearInterval(beatTestInterval);
+                beatTestInterval = null;
+                document.getElementById('beat-test').innerHTML =
+                    '<p class="info">Beat test stopped</p>';
+            }
+        }
+
+        // Run tests on load
+        window.onload = () => {
+            testFileExistence();
+            testBeatDataStructure();
+        };
+    </script>
+</body>
+</html>
