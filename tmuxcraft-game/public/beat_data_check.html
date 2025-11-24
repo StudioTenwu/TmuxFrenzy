@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Beat Data Cache Check</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1b26;
+            color: #c0caf5;
+            padding: 20px;
+        }
+        .info { color: #7dcfff; }
+        .warning { color: #e0af68; }
+        .error { color: #f7768e; }
+        .success { color: #9ece6a; }
+    </style>
+</head>
+<body>
+    <h1>Beat Data Cache Check</h1>
+    <div id="output">Loading...</div>
+
+    <script>
+        async function checkBeatData() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<p class="info">Fetching beat_data.json with cache bypass...</p>';
+
+            try {
+                // Force bypass cache with timestamp
+                const timestamp = Date.now();
+                const response = await fetch(`/beat_data.json?t=${timestamp}`, {
+                    cache: 'no-cache',
+                    headers: {
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
+                    }
+                });
+
+                if (!response.ok) {
+                    output.innerHTML = `<p class="error">Failed to fetch: ${response.status}</p>`;
+                    return;
+                }
+
+                const data = await response.json();
+
+                let html = '<h2 class="success">✓ Beat Data Loaded</h2>';
+                html += '<table border="1" cellpadding="8" style="border-collapse: collapse; margin: 20px 0;">';
+                html += '<tr><th>Property</th><th>Value</th></tr>';
+                html += `<tr><td>Total beats</td><td><strong>${data.beats.length}</strong></td></tr>`;
+                html += `<tr><td>Downbeats</td><td>${data.downbeats.length}</td></tr>`;
+                html += `<tr><td>Tempo</td><td>${data.tempo.toFixed(2)} BPM</td></tr>`;
+                html += `<tr><td>Duration</td><td>${data.duration_seconds.toFixed(2)}s</td></tr>`;
+                html += `<tr><td>First beat</td><td><strong>${data.beats[0].toFixed(1)}ms (${(data.beats[0]/1000).toFixed(2)}s)</strong></td></tr>`;
+                html += `<tr><td>Second beat</td><td>${data.beats[1].toFixed(1)}ms</td></tr>`;
+                html += `<tr><td>Third beat</td><td>${data.beats[2].toFixed(1)}ms</td></tr>`;
+
+                if (data.average_beat_interval_ms) {
+                    html += `<tr><td>Avg interval</td><td>${data.average_beat_interval_ms.toFixed(1)}ms</td></tr>`;
+                }
+
+                if (data.source) {
+                    html += `<tr><td>Source</td><td><strong>${data.source}</strong></td></tr>`;
+                }
+
+                html += '</table>';
+
+                // Check if these are manual annotations
+                const firstBeat = data.beats[0];
+                if (firstBeat > 2800 && firstBeat < 2810 && data.beats.length === 413) {
+                    html += '<p class="success">✓ ✓ ✓ MANUAL ANNOTATIONS DETECTED!</p>';
+                    html += '<p class="success">First beat at 2.8s with 413 total beats = YOUR manual_annotations.csv</p>';
+                } else if (firstBeat > 1090 && firstBeat < 1100) {
+                    html += '<p class="warning">⚠ ⚠ ⚠ ML-DETECTED BEATS DETECTED!</p>';
+                    html += '<p class="warning">First beat at 1.1s = Librosa automatic detection</p>';
+                    html += '<p class="error">Browser is loading CACHED version!</p>';
+                    html += '<hr>';
+                    html += '<h3>To Fix:</h3>';
+                    html += '<ol>';
+                    html += '<li>Press <strong>Ctrl+Shift+R</strong> (hard refresh)</li>';
+                    html += '<li>Or open DevTools (F12) → Network tab → check "Disable cache"</li>';
+                    html += '<li>Or clear browser cache for localhost</li>';
+                    html += '</ol>';
+                } else {
+                    html += '<p class="info">Unknown beat data source</p>';
+                }
+
+                html += '<hr>';
+                html += '<p><button onclick="location.reload(true)" style="padding: 10px; font-size: 16px;">🔄 Hard Reload This Page</button></p>';
+                html += '<p><a href="/" style="color: #7dcfff;">← Back to Game</a></p>';
+
+                output.innerHTML = html;
+
+            } catch (err) {
+                output.innerHTML = `<p class="error">Error: ${err.message}</p>`;
+            }
+        }
+
+        checkBeatData();
+    </script>
+</body>
+</html>
